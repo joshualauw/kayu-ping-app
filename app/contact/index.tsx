@@ -3,10 +3,20 @@ import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts } from "@/db/schema";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { desc } from "drizzle-orm";
+import { and, desc, eq, like, or } from "drizzle-orm";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface ContactListItem {
@@ -21,10 +31,12 @@ interface ContactListItem {
 export default function ContactScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const [selectedCategory, setSelectedCategory] = useState("semua");
   const [data, setData] = useState<ContactListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const loadMore = () => {
     if (!hasMore || loading) return;
@@ -34,16 +46,32 @@ export default function ContactScreen() {
     fetchContacts(nextPage, true);
   };
 
-  const fetchContacts = async (pageNum: number = 1, append = false) => {
+  const fetchContacts = async (pageNum: number = 1, append = false, query = "", category = "semua") => {
     if (loading) return;
 
     try {
       setLoading(true);
+      console.log("Fetching contacts...", { pageNum, query, category });
 
       const limit = 20;
       const offset = (pageNum - 1) * limit;
 
-      const res = await db.select().from(contacts).orderBy(desc(contacts.id)).limit(limit).offset(offset);
+      const filters = [];
+
+      if (query) {
+        filters.push(or(like(contacts.name, `%${query}%`), like(contacts.phoneNumber, `%${query}%`)));
+      }
+      if (category !== "semua") {
+        filters.push(eq(contacts.category, category));
+      }
+
+      const res = await db
+        .select()
+        .from(contacts)
+        .where(and(...filters))
+        .orderBy(desc(contacts.id))
+        .limit(limit)
+        .offset(offset);
 
       if (append) {
         setData((prev) => [...prev, ...res]);
@@ -59,22 +87,41 @@ export default function ContactScreen() {
     }
   };
 
+  const isFirstRender = useRef(true);
+
   useFocusEffect(
     useCallback(() => {
-      fetchContacts(1, false);
-      setPage(1);
-    }, []),
+      if (isFirstRender.current) {
+        fetchContacts(1, false, searchQuery, selectedCategory);
+        setPage(1);
+        isFirstRender.current = false;
+        return;
+      }
+
+      const delayDebounceFn = setTimeout(() => {
+        setPage(1);
+        fetchContacts(1, false, searchQuery, selectedCategory);
+      }, 200);
+
+      return () => clearTimeout(delayDebounceFn);
+    }, [searchQuery, selectedCategory]),
   );
 
-  const renderItem = ({ item }: { item: any }) => (
-    <Pressable onPress={() => router.push(`/contact/${item.id}`)}>
-      <View style={styles.card}>
-        <Avatar name={item.name} />
-        <View style={styles.infoColumn}>
-          <Text style={styles.nameText}>{item.name}</Text>
-          <Text style={styles.phoneText}>{item.phoneNumber}</Text>
-          <Badge label={item.category} />
-        </View>
+  const renderItem = ({ item }: { item: ContactListItem }) => (
+    <Pressable
+      onPress={() => router.push(`/contact/${item.id}`)}
+      style={({ pressed }) => [styles.card, { opacity: pressed ? 0.9 : 1 }]}
+      android_ripple={{
+        color: "rgba(0, 0, 0, 0.1)",
+        borderless: false,
+        foreground: true,
+      }}
+    >
+      <Avatar name={item.name} />
+      <View style={styles.infoColumn}>
+        <Text style={styles.nameText}>{item.name}</Text>
+        <Text style={styles.phoneText}>{item.phoneNumber}</Text>
+        <Badge label={item.category} />
       </View>
     </Pressable>
   );
@@ -84,17 +131,18 @@ export default function ContactScreen() {
       <MaterialCommunityIcons name="account-search-outline" size={80} color="#D1D5DB" />
       <Text style={styles.emptyTitle}>Belum Ada Kontak</Text>
       <Text style={styles.emptySubtitle}>Mulai catat supplier atau supir Anda untuk mempermudah transaksi kayu.</Text>
-      <Pressable style={styles.emptyButton} onPress={() => router.push("/contact/add")}>
-        <MaterialCommunityIcons name="plus" size={20} color="white" />
-        <Text style={styles.emptyButtonText}>Tambah Kontak</Text>
-      </Pressable>
     </View>
   );
 
   return (
     <Container>
       <Stack.Screen options={{ title: "Kontak" }} />
-
+      <SearchBar
+        searchQuery={searchQuery}
+        onChangeText={setSearchQuery}
+        selectedCategory={selectedCategory}
+        onSelectCategory={setSelectedCategory}
+      />
       {loading ? (
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
       ) : (
@@ -113,8 +161,9 @@ export default function ContactScreen() {
           contentContainerStyle={[
             { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xs },
             data.length === 0 && {
-              flex: 1,
+              flexGrow: 1,
               justifyContent: "center",
+              alignItems: "center",
               paddingBottom: 100,
             },
           ]}
@@ -123,12 +172,78 @@ export default function ContactScreen() {
         />
       )}
 
-      {data.length > 0 && (
-        <Pressable style={[styles.fab, { bottom: insets.bottom + 16 }]} onPress={() => router.push("/contact/add")}>
-          <MaterialCommunityIcons name="plus" size={30} color="white" />
-        </Pressable>
-      )}
+      <Pressable style={[styles.fab, { bottom: insets.bottom + 16 }]} onPress={() => router.push("/contact/add")}>
+        <MaterialCommunityIcons name="plus" size={30} color="white" />
+      </Pressable>
     </Container>
+  );
+}
+
+export function SearchBar({ searchQuery, onChangeText, selectedCategory, onSelectCategory }: any) {
+  const [visible, setVisible] = useState(false);
+
+  const categories = [
+    { label: "Semua", value: "semua" },
+    { label: "Supplier", value: "supplier" },
+    { label: "Langganan", value: "langganan" },
+    { label: "Supir", value: "supir" },
+    { label: "Lainnya", value: "lainnya" },
+  ];
+
+  const handleSelect = (category: string) => {
+    onSelectCategory(category);
+    setVisible(false);
+  };
+
+  return (
+    <View style={styles.searchContainer}>
+      <MaterialCommunityIcons name="magnify" size={20} color={Colors.border} style={styles.searchIcon} />
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Cari nama atau nomor"
+        placeholderTextColor={Colors.border}
+        value={searchQuery}
+        onChangeText={onChangeText}
+      />
+
+      <Pressable style={styles.searchFilterButton} onPress={() => setVisible(true)}>
+        <MaterialCommunityIcons
+          name="filter-variant"
+          size={18}
+          color={selectedCategory !== "all" ? Colors.primary : Colors.text}
+        />
+      </Pressable>
+
+      <Modal visible={visible} transparent animationType="fade">
+        <TouchableWithoutFeedback onPress={() => setVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.dropdownMenu}>
+              <Text style={styles.dropdownTitle}>Filter Kategori</Text>
+              {categories.map((item) => {
+                const isSelected = selectedCategory === item.value;
+
+                return (
+                  <Pressable
+                    key={item.value}
+                    style={({ pressed }) => [
+                      styles.dropdownItem,
+                      pressed && { backgroundColor: "#F3F4F6" },
+                      isSelected && { backgroundColor: Colors.primary + "10" },
+                    ]}
+                    onPress={() => handleSelect(item.value)}
+                  >
+                    <Text style={[styles.dropdownItemText, isSelected && { color: Colors.primary, fontWeight: "700" }]}>
+                      {item.label}
+                    </Text>
+                    {isSelected && <MaterialCommunityIcons name="check" size={18} color={Colors.primary} />}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </View>
   );
 }
 
@@ -159,18 +274,11 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.background,
     flexDirection: "row",
-    padding: Spacing.md,
+    padding: Spacing.sm,
     borderRadius: 12,
     marginBottom: Spacing.sm,
     alignItems: "center",
     justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: Colors.border,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
   },
   infoColumn: { flex: 1, justifyContent: "center" },
   nameText: { fontSize: 16, fontWeight: "700", color: Colors.text },
@@ -231,23 +339,73 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     lineHeight: 20,
   },
-  emptyButton: {
+  searchContainer: {
     flexDirection: "row",
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: 10,
-    marginTop: Spacing.lg,
     alignItems: "center",
-    elevation: 3,
-    shadowColor: Colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    backgroundColor: Colors.secondary,
+    marginTop: 8,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: 12,
+    height: 44,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  emptyButtonText: {
-    color: "white",
-    fontWeight: "600",
-    marginLeft: Spacing.sm,
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.text,
+    paddingVertical: 0,
+  },
+  searchFilterButton: {
+    marginLeft: 8,
+    padding: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.1)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: 120,
+    paddingRight: 20,
+  },
+  dropdownMenu: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    width: 180,
+    padding: 8,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+  },
+  dropdownTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#9CA3AF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    textTransform: "uppercase",
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginVertical: 2,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: "#374151",
+    fontWeight: "500",
   },
 });

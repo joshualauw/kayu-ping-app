@@ -5,7 +5,7 @@ export const Colors = {
   secondary: "#f2f7f3ff",
   accent: "#34C759ff",
   background: "#FEFEFE",
-  danger: "#FF3B30",
+  danger: "#c7511bff",
 };
 
 export const Spacing = {
