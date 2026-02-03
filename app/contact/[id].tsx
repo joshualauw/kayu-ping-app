@@ -1,13 +1,16 @@
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Container } from "@/components/Container";
+import DeleteModal from "@/components/DeleteModal";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts } from "@/db/schema";
+import { useDeleteConfirm } from "@/hooks/useDeleteConfirm";
 import { Ionicons } from "@expo/vector-icons";
 import { eq } from "drizzle-orm";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import Toast from "react-native-toast-message";
 
 interface ContactDetail {
   id: number;
@@ -20,20 +23,51 @@ interface ContactDetail {
 
 export default function ContactDetailScreen() {
   const { id } = useLocalSearchParams();
+  const { isVisible, show, hide, item } = useDeleteConfirm();
   const [contact, setContact] = useState<ContactDetail | null>(null);
 
-  useEffect(() => {
-    const fetchDetail = async () => {
-      const result = await db
-        .select()
-        .from(contacts)
-        .where(eq(contacts.id, Number(id)))
-        .limit(1);
+  const handleDelete = async (contactId: number) => {
+    try {
+      await db.delete(contacts).where(eq(contacts.id, contactId));
 
-      if (result.length > 0) setContact(result[0]);
-    };
-    fetchDetail();
-  }, [id]);
+      Toast.show({
+        type: "success",
+        text1: "Berhasil!",
+        text2: "Kontak dihapus",
+      });
+      router.replace("/contact");
+    } catch (error) {
+      console.error(error);
+      Toast.show({
+        type: "error",
+        text1: "Gagal!",
+        text2: "Gagal menghapus kontak",
+      });
+    }
+  };
+
+  const confirmDelete = () => {
+    if (item) {
+      handleDelete(item.id);
+    }
+    hide();
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      const fetchDetail = async () => {
+        const result = await db
+          .select()
+          .from(contacts)
+          .where(eq(contacts.id, Number(id)))
+          .limit(1);
+
+        if (result.length > 0) setContact(result[0]);
+      };
+
+      fetchDetail();
+    }, [id]),
+  );
 
   if (!contact) return <Text>Loading...</Text>;
 
@@ -61,6 +95,18 @@ export default function ContactDetailScreen() {
           </View>
           <Text style={styles.name}>{contact.name}</Text>
           <Text style={styles.categoryTag}>{contact.category.toUpperCase()}</Text>
+
+          <View style={styles.buttonRow}>
+            <Pressable
+              style={[styles.actionButton, styles.editButton]}
+              onPress={() => router.push(`/contact/edit/${contact.id}`)}
+            >
+              <Text style={styles.editButtonText}>Ubah</Text>
+            </Pressable>
+            <Pressable style={[styles.actionButton, styles.deleteButton]} onPress={() => show(contact)}>
+              <Text style={styles.deleteButtonText}>Hapus</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.actionRow}>
@@ -85,6 +131,8 @@ export default function ContactDetailScreen() {
           />
         </View>
       </ScrollView>
+
+      <DeleteModal visible={isVisible} itemName={item?.name || ""} onConfirm={confirmDelete} onCancel={hide} />
     </Container>
   );
 }
@@ -158,4 +206,35 @@ const styles = StyleSheet.create({
   },
   infoLabel: { fontSize: 12, color: "#666", marginBottom: Spacing.xs },
   infoValue: { fontSize: 16, color: Colors.text },
+  buttonRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    width: "100%",
+    paddingHorizontal: Spacing.md,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editButton: {
+    backgroundColor: Colors.secondary,
+  },
+  editButtonText: {
+    color: Colors.text,
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  deleteButton: {
+    backgroundColor: Colors.danger,
+  },
+  deleteButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 14,
+  },
 });
