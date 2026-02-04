@@ -28,7 +28,10 @@ export default function RootLayout() {
           headerTitleStyle: { fontWeight: "bold" },
           contentStyle: { backgroundColor: Colors.background },
         }}
-      />
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ title: "Transaksi" }} />
+      </Stack>
       <Toast />
     </Suspense>
   );

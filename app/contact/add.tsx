@@ -21,7 +21,7 @@ const schema = yup.object({
     .string()
     .oneOf(["supplier", "langganan", "supir", "lainnya"], "Kategori tidak valid")
     .required("Kategori wajib dipilih"),
-  note: yup.string().optional(),
+  notes: yup.string().optional(),
 });
 
 type FormValues = yup.InferType<typeof schema>;
@@ -37,7 +37,7 @@ export default function AddContactScreen() {
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", phone: "", category: "langganan", note: "" },
+    defaultValues: { name: "", phone: "", category: "langganan" },
   });
 
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -83,7 +83,7 @@ export default function AddContactScreen() {
         name: data.name,
         phoneNumber: data.phone,
         category: data.category,
-        notes: data.note || null,
+        notes: data.notes,
       });
 
       Toast.show({
@@ -207,7 +207,7 @@ export default function AddContactScreen() {
         <Text style={styles.label}>Catatan (opsional)</Text>
         <Controller
           control={control}
-          name="note"
+          name="notes"
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
               style={[styles.input, styles.multiline]}

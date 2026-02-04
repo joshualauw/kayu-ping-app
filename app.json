@@ -16,6 +16,15 @@
         "backgroundColor": "#ffffff"
       }
     },
-    "plugins": ["expo-router", "expo-sqlite"]
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you upload images."
+        }
+      ]
+    ]
   }
 }
