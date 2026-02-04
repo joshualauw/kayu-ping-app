@@ -8,6 +8,7 @@ import { db } from "@/db/client";
 import { contacts } from "@/db/schema";
 import { useDeleteConfirm } from "@/hooks/useDeleteConfirm";
 import { Ionicons } from "@expo/vector-icons";
+import dayjs from "dayjs";
 import { eq } from "drizzle-orm";
 import { useCallback, useState } from "react";
 import Toast from "react-native-toast-message";
@@ -126,7 +127,7 @@ export default function ContactDetailScreen() {
           {contact.notes && <InfoItem label="Notes" value={contact.notes} icon="document-text-outline" />}
           <InfoItem
             label="Ditambahkan Pada"
-            value={contact.createdAt ? new Date(contact.createdAt).toLocaleDateString() : "-"}
+            value={contact.createdAt ? dayjs(contact.createdAt).format("DD MMM YYYY") : "-"}
             icon="calendar-outline"
           />
         </View>

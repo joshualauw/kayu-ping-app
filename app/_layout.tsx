@@ -1,5 +1,6 @@
 import { Colors } from "@/constants/theme";
 import { db } from "@/db/client";
+import "@/lib/dayjs-config";
 import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
 import { Stack } from "expo-router";
 import { Suspense } from "react";

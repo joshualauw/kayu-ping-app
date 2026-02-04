@@ -51,11 +51,9 @@ export default function ContactScreen() {
 
     try {
       setLoading(true);
-      console.log("Fetching contacts...", { pageNum, query, category });
 
       const limit = 20;
       const offset = (pageNum - 1) * limit;
-
       const filters = [];
 
       if (query) {
