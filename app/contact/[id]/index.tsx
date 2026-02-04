@@ -100,7 +100,7 @@ export default function ContactDetailScreen() {
           <View style={styles.buttonRow}>
             <Pressable
               style={[styles.actionButton, styles.editButton]}
-              onPress={() => router.push(`/contact/edit/${contact.id}`)}
+              onPress={() => router.push(`/contact/${contact.id}/edit`)}
             >
               <Text style={styles.editButtonText}>Ubah</Text>
             </Pressable>

@@ -5,26 +5,24 @@ import { contacts } from "@/db/schema";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as Contacts from "expo-contacts";
 import { Stack, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import Toast from "react-native-toast-message";
 import * as yup from "yup";
 
-const schema = yup
-  .object({
-    name: yup.string().required("Nama wajib diisi"),
-    phone: yup
-      .string()
-      .required("Nomor telepon wajib diisi")
-      .matches(/^\+?\d{6,15}$/, "Nomor telepon tidak valid"),
-    category: yup
-      .string()
-      .oneOf(["supplier", "langganan", "supir", "lainnya"], "Kategori tidak valid")
-      .required("Kategori wajib dipilih"),
-    note: yup.string().optional(),
-  })
-  .required();
+const schema = yup.object({
+  name: yup.string().required("Nama wajib diisi"),
+  phone: yup
+    .string()
+    .required("Nomor telepon wajib diisi")
+    .matches(/^\+?\d{6,15}$/, "Nomor telepon tidak valid"),
+  category: yup
+    .string()
+    .oneOf(["supplier", "langganan", "supir", "lainnya"], "Kategori tidak valid")
+    .required("Kategori wajib dipilih"),
+  note: yup.string().optional(),
+});
 
 type FormValues = yup.InferType<typeof schema>;
 
@@ -34,6 +32,7 @@ export default function AddContactScreen() {
   const {
     control,
     handleSubmit,
+    watch,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm({
@@ -45,15 +44,28 @@ export default function AddContactScreen() {
   const [phoneContacts, setPhoneContacts] = useState<Contacts.Contact[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const loadPhoneContacts = async () => {
-    const { status } = await Contacts.requestPermissionsAsync();
-    if (status === "granted") {
-      const { data } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
-      });
-      setPhoneContacts(data);
-    }
-  };
+  useEffect(() => {
+    const loadPhoneContacts = async () => {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status === "granted") {
+        const { data } = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
+        });
+        setPhoneContacts(data);
+      }
+    };
+
+    loadPhoneContacts();
+  }, []);
+
+  const nameValue = watch("name");
+
+  const filteredContacts = useMemo(() => {
+    if (!nameValue || nameValue.length < 2) return [];
+
+    const searchTerm = nameValue.toLowerCase();
+    return phoneContacts.filter((c) => c.name?.toLowerCase().includes(searchTerm)).slice(0, 5);
+  }, [nameValue, phoneContacts]);
 
   const selectContact = (contact: Contacts.Contact) => {
     const name = contact.name;
@@ -105,7 +117,6 @@ export default function AddContactScreen() {
                 style={[styles.input, errors.name && styles.inputError]}
                 placeholder="Nama lengkap"
                 onFocus={() => {
-                  loadPhoneContacts();
                   setShowSuggestions(true);
                 }}
                 onBlur={onBlur}
@@ -118,15 +129,12 @@ export default function AddContactScreen() {
               />
               {showSuggestions && value.length > 1 && (
                 <View style={styles.dropdown}>
-                  {phoneContacts
-                    .filter((c) => c.name.toLowerCase().includes(value.toLowerCase()))
-                    .slice(0, 5)
-                    .map((contact, i) => (
-                      <Pressable key={i} style={styles.option} onPress={() => selectContact(contact)}>
-                        <Text style={{ fontWeight: "bold" }}>{contact.name}</Text>
-                        <Text style={{ fontSize: 12, color: "gray" }}>{contact.phoneNumbers?.[0]?.number}</Text>
-                      </Pressable>
-                    ))}
+                  {filteredContacts.map((contact, i) => (
+                    <Pressable key={i} style={styles.option} onPress={() => selectContact(contact)}>
+                      <Text style={{ fontWeight: "bold" }}>{contact.name}</Text>
+                      <Text style={{ fontSize: 12, color: "gray" }}>{contact.phoneNumbers?.[0]?.number}</Text>
+                    </Pressable>
+                  ))}
                 </View>
               )}
             </View>

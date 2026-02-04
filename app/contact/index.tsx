@@ -31,7 +31,7 @@ interface ContactListItem {
 export default function ContactScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [selectedCategory, setSelectedCategory] = useState("semua");
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [data, setData] = useState<ContactListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -46,7 +46,7 @@ export default function ContactScreen() {
     fetchContacts(nextPage, true);
   };
 
-  const fetchContacts = async (pageNum: number = 1, append = false, query = "", category = "semua") => {
+  const fetchContacts = async (pageNum: number = 1, append = false, query = "", category = "all") => {
     if (loading) return;
 
     try {
@@ -59,7 +59,7 @@ export default function ContactScreen() {
       if (query) {
         filters.push(or(like(contacts.name, `%${query}%`), like(contacts.phoneNumber, `%${query}%`)));
       }
-      if (category !== "semua") {
+      if (category !== "all") {
         filters.push(eq(contacts.category, category));
       }
 
@@ -181,11 +181,11 @@ export function SearchBar({ searchQuery, onChangeText, selectedCategory, onSelec
   const [visible, setVisible] = useState(false);
 
   const categories = [
-    { label: "Semua", value: "semua" },
+    { label: "Semua", value: "all" },
     { label: "Supplier", value: "supplier" },
-    { label: "Langganan", value: "langganan" },
-    { label: "Supir", value: "supir" },
-    { label: "Lainnya", value: "lainnya" },
+    { label: "Langganan", value: "client" },
+    { label: "Supir", value: "driver" },
+    { label: "Lainnya", value: "others" },
   ];
 
   const handleSelect = (category: string) => {
