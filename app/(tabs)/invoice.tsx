@@ -6,10 +6,20 @@ import "@/lib/dayjs-config";
 import { formatCurrency } from "@/lib/utils";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, like, lte } from "drizzle-orm";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
 
 interface InvoiceListItem {
   id: number;
@@ -20,22 +30,85 @@ interface InvoiceListItem {
   type: "sales" | "purchase";
 }
 
+interface ContactFilterItem {
+  id: number;
+  name: string;
+  phoneNumber: string;
+}
+
 export default function InvoiceScreen() {
   const [selectedType, setSelectedType] = useState<"sales" | "purchase">("sales");
   const [data, setData] = useState<InvoiceListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [filterQuery, setFilterQuery] = useState("");
+  const [contactResults, setContactResults] = useState<ContactFilterItem[]>([]);
+  const [contactLoading, setContactLoading] = useState(false);
+  const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
+  const [selectedContactName, setSelectedContactName] = useState<string | null>(null);
+  const [dateFilterVisible, setDateFilterVisible] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>(dayjs().format("DD MMM YYYY"));
+  const [dateFilterType, setDateFilterType] = useState<"day" | "week" | "month" | "year">("day");
+  const [dateAnchor, setDateAnchor] = useState(dayjs());
+  const [statusFilterVisible, setStatusFilterVisible] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<"all" | "paid" | "pending">("all");
+
+  const getDateLabel = (type: "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
+    if (type === "day") return anchor.format("DD MMM YYYY");
+    if (type === "week") {
+      const start = anchor.startOf("week");
+      const end = anchor.endOf("week");
+      return `${start.format("DD MMM")} - ${end.format("DD MMM YYYY")}`;
+    }
+    if (type === "month") return anchor.format("MMM YYYY");
+    return anchor.format("YYYY");
+  };
+
+  const getDateRange = (type: "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
+    if (type === "day") {
+      return {
+        startDate: anchor.startOf("day").toISOString(),
+        endDate: anchor.endOf("day").toISOString(),
+      };
+    }
+    if (type === "week") {
+      return {
+        startDate: anchor.startOf("week").toISOString(),
+        endDate: anchor.endOf("week").toISOString(),
+      };
+    }
+    if (type === "month") {
+      return {
+        startDate: anchor.startOf("month").toISOString(),
+        endDate: anchor.endOf("month").toISOString(),
+      };
+    }
+    return {
+      startDate: anchor.startOf("year").toISOString(),
+      endDate: anchor.endOf("year").toISOString(),
+    };
+  };
 
   const loadMore = () => {
     if (!hasMore || loading) return;
 
     const nextPage = page + 1;
     setPage(nextPage);
-    fetchInvoices(nextPage, true);
+    const { startDate, endDate } = getDateRange(dateFilterType, dateAnchor);
+    fetchInvoices(nextPage, true, selectedType, selectedContactId, selectedStatus, startDate, endDate);
   };
 
-  const fetchInvoices = async (pageNum: number = 1, append = false, type = "sales") => {
+  const fetchInvoices = async (
+    pageNum: number = 1,
+    append = false,
+    type = "sales",
+    contactId: number | null = null,
+    status: "all" | "paid" | "pending" = "all",
+    startDate?: string,
+    endDate?: string,
+  ) => {
     if (loading) return;
 
     try {
@@ -43,7 +116,18 @@ export default function InvoiceScreen() {
 
       const limit = 20;
       const offset = (pageNum - 1) * limit;
+
       const filters = [eq(invoices.type, type)];
+      if (contactId) {
+        filters.push(eq(invoices.contactId, contactId));
+      }
+      if (status !== "all") {
+        filters.push(eq(invoices.status, status));
+      }
+      if (startDate && endDate) {
+        filters.push(gte(invoices.entryDate, startDate));
+        filters.push(lte(invoices.entryDate, endDate));
+      }
 
       const res = await db
         .select({
@@ -78,9 +162,92 @@ export default function InvoiceScreen() {
   useFocusEffect(
     useCallback(() => {
       setPage(1);
-      fetchInvoices(1, false, selectedType);
-    }, [selectedType]),
+      const { startDate, endDate } = getDateRange(dateFilterType, dateAnchor);
+      fetchInvoices(1, false, selectedType, selectedContactId, selectedStatus, startDate, endDate);
+    }, [selectedType, selectedContactId, selectedStatus, dateFilterType, dateAnchor]),
   );
+
+  const fetchContacts = async (query: string = "") => {
+    if (contactLoading) return;
+
+    try {
+      setContactLoading(true);
+
+      let filters = [];
+
+      if (query.trim()) {
+        filters.push(like(contacts.name, `%${query.trim()}%`));
+      }
+
+      let q = db
+        .select({
+          id: contacts.id,
+          name: contacts.name,
+          phoneNumber: contacts.phoneNumber,
+        })
+        .from(contacts)
+        .where(and(...filters))
+        .orderBy(desc(contacts.id))
+        .limit(40);
+
+      const res = await q;
+      setContactResults(res as ContactFilterItem[]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setContactLoading(false);
+    }
+  };
+
+  const handleSelectContact = (contact: ContactFilterItem) => {
+    setSelectedContactId(contact.id);
+    setSelectedContactName(contact.name);
+    setFilterVisible(false);
+    setPage(1);
+  };
+
+  const handleClearFilter = () => {
+    setSelectedContactId(null);
+    setSelectedContactName(null);
+    setPage(1);
+  };
+
+  const handleSelectStatus = (status: "all" | "paid" | "pending") => {
+    setSelectedStatus(status);
+    setStatusFilterVisible(false);
+    setPage(1);
+  };
+
+  const handleSelectDateFilter = (type: "day" | "week" | "month" | "year") => {
+    const anchor = dayjs();
+    setDateFilterType(type);
+    setDateAnchor(anchor);
+    setSelectedDate(getDateLabel(type, anchor));
+    setDateFilterVisible(false);
+    setPage(1);
+  };
+
+  const handleShiftDate = (direction: -1 | 1) => {
+    let nextAnchor = dateAnchor;
+    if (dateFilterType === "day") nextAnchor = dateAnchor.add(direction, "day");
+    if (dateFilterType === "week") nextAnchor = dateAnchor.add(direction, "week");
+    if (dateFilterType === "month") nextAnchor = dateAnchor.add(direction, "month");
+    if (dateFilterType === "year") nextAnchor = dateAnchor.add(direction, "year");
+
+    setDateAnchor(nextAnchor);
+    setSelectedDate(getDateLabel(dateFilterType, nextAnchor));
+    setPage(1);
+  };
+
+  useEffect(() => {
+    if (!filterVisible) return;
+
+    const delayDebounceFn = setTimeout(() => {
+      fetchContacts(filterQuery);
+    }, 100);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [filterQuery, filterVisible]);
 
   const renderItem = ({ item }: { item: InvoiceListItem }) => (
     <Pressable style={styles.card} android_ripple={{ color: Colors.secondary }}>
@@ -127,6 +294,38 @@ export default function InvoiceScreen() {
         </Pressable>
       </View>
 
+      <View style={styles.filterButtonContainer}>
+        <Pressable style={styles.filterButton} onPress={() => setFilterVisible(true)}>
+          <MaterialCommunityIcons name="filter-variant" size={18} color={Colors.text} />
+          <Text style={styles.filterButtonText}>
+            Filter Kontak{selectedContactName ? `: ${selectedContactName}` : ""}
+          </Text>
+        </Pressable>
+        {selectedContactName && (
+          <Pressable style={styles.clearFilterButton} onPress={handleClearFilter}>
+            <MaterialCommunityIcons name="close" size={18} color={Colors.text} />
+          </Pressable>
+        )}
+      </View>
+
+      <View style={styles.dateFilterRow}>
+        <Pressable style={styles.dateFilterButton} onPress={() => setDateFilterVisible(true)}>
+          <MaterialCommunityIcons name="calendar" size={18} color={Colors.primary} />
+          <Text style={styles.dateFilterLabel}>{selectedDate}</Text>
+        </Pressable>
+        <View style={styles.dateNavButtons}>
+          <Pressable style={styles.statusFilterButton} onPress={() => setStatusFilterVisible(true)}>
+            <MaterialCommunityIcons name="filter-variant" size={18} color={Colors.text} />
+          </Pressable>
+          <Pressable style={styles.dateNavButton} onPress={() => handleShiftDate(-1)}>
+            <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.text} />
+          </Pressable>
+          <Pressable style={styles.dateNavButton} onPress={() => handleShiftDate(1)}>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.text} />
+          </Pressable>
+        </View>
+      </View>
+
       {loading && page === 1 ? (
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
       ) : (
@@ -140,7 +339,8 @@ export default function InvoiceScreen() {
           onRefresh={() => {
             setPage(1);
             setData([]);
-            fetchInvoices(1, false, selectedType);
+            const { startDate, endDate } = getDateRange(dateFilterType, dateAnchor);
+            fetchInvoices(1, false, selectedType, selectedContactId, selectedStatus, startDate, endDate);
           }}
           contentContainerStyle={[
             { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xs },
@@ -159,6 +359,125 @@ export default function InvoiceScreen() {
       <Pressable style={styles.fab} onPress={() => router.push("/invoice/add")}>
         <MaterialCommunityIcons name="plus" size={30} color="white" />
       </Pressable>
+
+      <Modal visible={filterVisible} transparent animationType="slide">
+        <TouchableWithoutFeedback onPress={() => setFilterVisible(false)}>
+          <View style={styles.sheetOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.sheetContainer}>
+                <View style={styles.sheetHandle} />
+                <Text style={styles.sheetTitle}>Filter Kontak</Text>
+                <View style={styles.sheetSearchContainer}>
+                  <MaterialCommunityIcons name="magnify" size={18} color={Colors.border} />
+                  <TextInput
+                    style={styles.sheetSearchInput}
+                    placeholder="Cari nama kontak"
+                    placeholderTextColor={Colors.border}
+                    value={filterQuery}
+                    onChangeText={setFilterQuery}
+                  />
+                </View>
+                {contactLoading ? (
+                  <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: Spacing.sm }} />
+                ) : contactResults.length === 0 ? (
+                  <Text style={styles.sheetEmptyText}>Tidak ditemukan kontak</Text>
+                ) : (
+                  <FlatList
+                    data={contactResults}
+                    keyExtractor={(item) => item.id.toString()}
+                    style={styles.sheetList}
+                    keyboardShouldPersistTaps="handled"
+                    renderItem={({ item }) => (
+                      <Pressable
+                        style={[styles.contactRow, selectedContactId === item.id && styles.contactRowSelected]}
+                        onPress={() => handleSelectContact(item)}
+                      >
+                        <Text style={styles.contactName}>{item.name}</Text>
+                        <Text style={styles.contactPhone}>{item.phoneNumber}</Text>
+                      </Pressable>
+                    )}
+                  />
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal visible={dateFilterVisible} transparent animationType="slide">
+        <TouchableWithoutFeedback onPress={() => setDateFilterVisible(false)}>
+          <View style={styles.sheetOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.sheetContainer}>
+                <View style={styles.sheetHandle} />
+                <Text style={styles.sheetTitle}>Filter Tanggal</Text>
+                <View style={styles.datePresetList}>
+                  <Pressable style={styles.datePresetItem} onPress={() => handleSelectDateFilter("day")}>
+                    <View>
+                      <Text style={styles.datePresetTop}>Hari ini</Text>
+                      <Text style={styles.datePresetBottom}>{dayjs().format("DD MMM YYYY")}</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable style={styles.datePresetItem} onPress={() => handleSelectDateFilter("week")}>
+                    <View>
+                      <Text style={styles.datePresetTop}>Minggu ini</Text>
+                      <Text style={styles.datePresetBottom}>
+                        {dayjs().startOf("week").format("DD MMM YYYY")} - {dayjs().endOf("week").format("DD MMM YYYY")}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  <Pressable style={styles.datePresetItem} onPress={() => handleSelectDateFilter("month")}>
+                    <View>
+                      <Text style={styles.datePresetTop}>Bulan ini</Text>
+                      <Text style={styles.datePresetBottom}>{dayjs().format("MMM YYYY")}</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable style={styles.datePresetItem} onPress={() => handleSelectDateFilter("year")}>
+                    <View>
+                      <Text style={styles.datePresetTop}>Tahun ini</Text>
+                      <Text style={styles.datePresetBottom}>{dayjs().format("YYYY")}</Text>
+                    </View>
+                  </Pressable>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal visible={statusFilterVisible} transparent animationType="fade">
+        <TouchableWithoutFeedback onPress={() => setStatusFilterVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.dropdownMenu}>
+              <Text style={styles.dropdownTitle}>Filter Status</Text>
+              {[
+                { label: "Semua", value: "all" },
+                { label: "Lunas", value: "paid" },
+                { label: "Belum Lunas", value: "pending" },
+              ].map((item) => {
+                const isSelected = selectedStatus === item.value;
+
+                return (
+                  <Pressable
+                    key={item.value}
+                    style={({ pressed }) => [
+                      styles.dropdownItem,
+                      pressed && { backgroundColor: "#F3F4F6" },
+                      isSelected && { backgroundColor: Colors.primary + "10" },
+                    ]}
+                    onPress={() => handleSelectStatus(item.value as "all" | "paid" | "pending")}
+                  >
+                    <Text style={[styles.dropdownItemText, isSelected && { color: Colors.primary, fontWeight: "700" }]}>
+                      {item.label}
+                    </Text>
+                    {isSelected && <MaterialCommunityIcons name="check" size={18} color={Colors.primary} />}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </Container>
   );
 }
@@ -190,6 +509,77 @@ const styles = StyleSheet.create({
   },
   typeTabTextActive: {
     color: "white",
+  },
+  filterButtonContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: Spacing.md,
+  },
+  filterButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.secondary,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.text,
+  },
+  clearFilterButton: {
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.secondary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dateFilterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dateFilterButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+  },
+  dateFilterLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  dateNavButtons: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  statusFilterButton: {
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dateNavButton: {
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
   },
   fab: {
     position: "absolute",
@@ -304,6 +694,107 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 16,
     color: "#374151",
+    fontWeight: "500",
+  },
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-end",
+  },
+  sheetContainer: {
+    backgroundColor: Colors.background,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.lg,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+  },
+  sheetHandle: {
+    width: 48,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: Colors.border,
+    alignSelf: "center",
+    marginBottom: Spacing.sm,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+    textAlign: "center",
+  },
+  sheetSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: Colors.secondary,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.sm,
+    height: 44,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  sheetSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.text,
+    paddingVertical: 0,
+  },
+  sheetList: {
+    marginTop: Spacing.sm,
+    maxHeight: 320,
+  },
+  contactRow: {
+    padding: Spacing.sm,
+    backgroundColor: "transparent",
+    borderRadius: 12,
+    borderWidth: 0,
+    borderColor: "transparent",
+    marginBottom: Spacing.sm,
+  },
+  contactRowSelected: {
+    backgroundColor: Colors.primary + "20",
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  contactName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.text,
+  },
+  contactPhone: {
+    fontSize: 12,
+    color: "#888",
+    marginTop: 2,
+  },
+  sheetEmptyText: {
+    marginTop: Spacing.sm,
+    fontSize: 12,
+    color: Colors.border,
+    textAlign: "center",
+  },
+  datePresetList: {
+    marginTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  datePresetItem: {
+    padding: Spacing.sm,
+    backgroundColor: "transparent",
+    borderRadius: 12,
+    borderWidth: 0,
+    borderColor: "transparent",
+    marginBottom: Spacing.sm,
+  },
+  datePresetTop: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  datePresetBottom: {
+    fontSize: 13,
+    color: "#888",
     fontWeight: "500",
   },
 });

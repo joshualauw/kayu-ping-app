@@ -1,12 +1,13 @@
 export const Colors = {
-  primary: "#319119ff",
+  primary: "#667d0cff",
   text: "#1C1C1E",
   border: "#D1D1D6",
   secondary: "#f2f7f3ff",
-  accent: "#34C759ff",
+  accent: "#2ba44aff",
   background: "#FEFEFE",
-  danger: "#c7511bff",
+  danger: "#c35816ff",
 };
+//319119ff
 
 export const Spacing = {
   xs: 4,
