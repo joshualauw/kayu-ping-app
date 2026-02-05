@@ -199,15 +199,17 @@ export default function ContactScreen() {
 
 export function SearchBar({ searchQuery, onChangeText, selectedCategory, onOpenFilter }: any) {
   return (
-    <View style={styles.searchContainer}>
-      <MaterialCommunityIcons name="magnify" size={20} color={Colors.border} style={styles.searchIcon} />
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Cari nama atau nomor"
-        placeholderTextColor={Colors.border}
-        value={searchQuery}
-        onChangeText={onChangeText}
-      />
+    <View style={styles.searchRow}>
+      <View style={styles.searchContainer}>
+        <MaterialCommunityIcons name="magnify" size={20} color={Colors.border} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Cari nama atau nomor"
+          placeholderTextColor={Colors.border}
+          value={searchQuery}
+          onChangeText={onChangeText}
+        />
+      </View>
 
       <Pressable style={styles.searchFilterButton} onPress={onOpenFilter}>
         <MaterialCommunityIcons
@@ -357,11 +359,17 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     lineHeight: 20,
   },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+  },
   searchContainer: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.secondary,
-    marginTop: 8,
     paddingHorizontal: Spacing.sm,
     borderRadius: 12,
     height: 44,
@@ -378,12 +386,13 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   searchFilterButton: {
-    marginLeft: 8,
-    padding: 6,
+    padding: 10,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.secondary,
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalOverlay: {
     flex: 1,

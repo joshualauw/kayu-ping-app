@@ -1,12 +1,12 @@
 import { Container } from "@/components/Container";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
-import { contacts, invoices } from "@/db/schema";
+import { contacts, invoices, paymentAllocations } from "@/db/schema";
 import "@/lib/dayjs-config";
 import { formatCurrency } from "@/lib/utils";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
-import { and, desc, eq, gte, like, lte } from "drizzle-orm";
+import { and, desc, eq, gte, like, lte, sql } from "drizzle-orm";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -26,6 +26,8 @@ interface InvoiceListItem {
   clientName: string;
   entryDate: string;
   amount: number;
+  paidAmount: number;
+  remainingAmount: number;
   status: "pending" | "paid";
   type: "sales" | "purchase";
 }
@@ -54,6 +56,7 @@ export default function InvoiceScreen() {
   const [dateAnchor, setDateAnchor] = useState(dayjs());
   const [statusFilterVisible, setStatusFilterVisible] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<"all" | "paid" | "pending">("all");
+  const [totalUnpaid, setTotalUnpaid] = useState<number>(0);
 
   const getDateLabel = (type: "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
     if (type === "day") return anchor.format("DD MMM YYYY");
@@ -67,27 +70,9 @@ export default function InvoiceScreen() {
   };
 
   const getDateRange = (type: "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
-    if (type === "day") {
-      return {
-        startDate: anchor.startOf("day").toISOString(),
-        endDate: anchor.endOf("day").toISOString(),
-      };
-    }
-    if (type === "week") {
-      return {
-        startDate: anchor.startOf("week").toISOString(),
-        endDate: anchor.endOf("week").toISOString(),
-      };
-    }
-    if (type === "month") {
-      return {
-        startDate: anchor.startOf("month").toISOString(),
-        endDate: anchor.endOf("month").toISOString(),
-      };
-    }
     return {
-      startDate: anchor.startOf("year").toISOString(),
-      endDate: anchor.endOf("year").toISOString(),
+      startDate: anchor.startOf(type).toISOString(),
+      endDate: anchor.endOf(type).toISOString(),
     };
   };
 
@@ -135,20 +120,40 @@ export default function InvoiceScreen() {
           clientName: contacts.name,
           entryDate: invoices.entryDate,
           amount: invoices.amount,
+          paidAmount: sql<number>`CAST(COALESCE(SUM(${paymentAllocations.amount}), 0) AS INTEGER)`,
           status: invoices.status,
           type: invoices.type,
         })
         .from(invoices)
         .leftJoin(contacts, eq(invoices.contactId, contacts.id))
+        .leftJoin(paymentAllocations, eq(invoices.id, paymentAllocations.invoiceId))
         .where(and(...filters))
-        .orderBy(desc(invoices.entryDate))
+        .groupBy(invoices.id, contacts.name)
+        .orderBy(desc(invoices.entryDate), sql`CASE WHEN ${invoices.status} = 'pending' THEN 0 ELSE 1 END`)
         .limit(limit)
         .offset(offset);
 
+      const dataWithRemaining = res.map((item) => ({
+        ...item,
+        paidAmount: Number(item.paidAmount) || 0,
+        remainingAmount: item.amount - (Number(item.paidAmount) || 0),
+      }));
+
+      const totalUnpaidResult = await db
+        .select({
+          totalUnpaid: sql<number>`COALESCE(SUM(${invoices.amount}) - SUM(COALESCE(${paymentAllocations.amount}, 0)), 0)`,
+        })
+        .from(invoices)
+        .leftJoin(paymentAllocations, eq(invoices.id, paymentAllocations.invoiceId))
+        .where(and(...filters, eq(invoices.status, "pending")));
+
+      const unpaidAmount = totalUnpaidResult[0]?.totalUnpaid ? Number(totalUnpaidResult[0].totalUnpaid) : 0;
+      setTotalUnpaid(unpaidAmount);
+
       if (append) {
-        setData((prev) => [...prev, ...(res as InvoiceListItem[])]);
+        setData((prev) => [...prev, ...(dataWithRemaining as InvoiceListItem[])]);
       } else {
-        setData(res as InvoiceListItem[]);
+        setData(dataWithRemaining as InvoiceListItem[]);
       }
 
       setHasMore(res.length === limit);
@@ -264,6 +269,17 @@ export default function InvoiceScreen() {
         <Text style={styles.meta}>{dayjs(item.entryDate).format("LL")}</Text>
         <Text style={styles.amount}>{formatCurrency(item.amount)}</Text>
       </View>
+
+      <View style={styles.paymentInfo}>
+        <View style={styles.paymentRow}>
+          <Text style={styles.paymentLabel}>Terbayar:</Text>
+          <Text style={styles.paymentValue}>{formatCurrency(item.paidAmount)}</Text>
+        </View>
+        <View style={styles.paymentRow}>
+          <Text style={styles.paymentLabel}>Sisa:</Text>
+          <Text style={[styles.paymentValue, styles.remainingText]}>{formatCurrency(item.remainingAmount)}</Text>
+        </View>
+      </View>
     </Pressable>
   );
 
@@ -308,6 +324,11 @@ export default function InvoiceScreen() {
         onChevronLeftPress={() => handleShiftDate(-1)}
         onChevronRightPress={() => handleShiftDate(1)}
       />
+
+      <View style={styles.totalUnpaidContainer}>
+        <Text style={styles.totalUnpaidLabel}>Total Belum Terbayar</Text>
+        <Text style={styles.totalUnpaidAmount}>{formatCurrency(totalUnpaid)}</Text>
+      </View>
 
       {loading && page === 1 ? (
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
@@ -590,7 +611,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   filterButton: {
     flex: 1,
@@ -602,7 +623,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.secondary,
   },
   filterButtonText: {
     fontSize: 14,
@@ -614,7 +634,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.secondary,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -872,5 +891,49 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#888",
     fontWeight: "500",
+  },
+  paymentInfo: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    gap: 4,
+  },
+  paymentRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  paymentLabel: {
+    fontSize: 13,
+    color: "#888",
+    fontWeight: "500",
+  },
+  paymentValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.text,
+  },
+  remainingText: {
+    color: Colors.primary,
+  },
+  totalUnpaidContainer: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 10,
+    backgroundColor: Colors.secondary,
+  },
+  totalUnpaidLabel: {
+    fontSize: 13,
+    color: "#888",
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  totalUnpaidAmount: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.text,
   },
 });

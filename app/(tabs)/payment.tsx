@@ -5,6 +5,15 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+interface PaymentListItem {
+  id: number;
+  clientName: string;
+  paymentDate: string;
+  amount: number;
+  method: "cash" | "bank_transfer" | "others";
+  type: "income" | "expense";
+}
+
 export default function PaymentScreen() {
   const [selectedType, setSelectedType] = useState<"income" | "expense">("income");
 

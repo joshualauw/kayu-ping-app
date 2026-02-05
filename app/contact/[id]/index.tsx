@@ -133,7 +133,13 @@ export default function ContactDetailScreen() {
         </View>
       </ScrollView>
 
-      <DeleteModal visible={isVisible} itemName={item?.name || ""} onConfirm={confirmDelete} onCancel={hide} />
+      <DeleteModal
+        visible={isVisible}
+        title="Hapus Kontak?"
+        message={`${contact?.name} akan dihapus permanen dan tidak bisa dikembalikan. Semua transaksi yang bersangkutan juga akan dihapus.`}
+        onConfirm={confirmDelete}
+        onCancel={hide}
+      />
     </Container>
   );
 }

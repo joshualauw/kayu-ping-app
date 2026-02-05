@@ -6,15 +6,16 @@ interface DeleteModalProps {
   visible: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-  itemName: string;
+  title: string;
+  message: string;
 }
 
-const DeleteModal = ({ visible, onConfirm, onCancel, itemName }: DeleteModalProps) => (
+const DeleteModal = ({ visible, onConfirm, onCancel, title, message }: DeleteModalProps) => (
   <Modal visible={visible} transparent animationType="fade">
     <View style={styles.overlay}>
       <View style={styles.container}>
-        <Text style={styles.title}>Hapus Kontak?</Text>
-        <Text style={styles.message}>Kontak {itemName} akan dihapus permanen dan tidak bisa dikembalikan.</Text>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.message}>{message}</Text>
         <View style={styles.buttons}>
           <Pressable style={styles.cancelBtn} onPress={onCancel}>
             <Text style={styles.cancelText}>Batal</Text>
