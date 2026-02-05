@@ -1,7 +1,8 @@
 import { Colors } from "@/constants/theme";
-import { db } from "@/db/client";
+import { db, expoDb } from "@/db/client";
 import "@/lib/dayjs-config";
 import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
+import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
 import { Stack } from "expo-router";
 import { Suspense } from "react";
 import { ActivityIndicator } from "react-native";
@@ -10,6 +11,7 @@ import migrations from "../drizzle/migrations";
 
 export default function RootLayout() {
   const { success, error } = useMigrations(db, migrations);
+  useDrizzleStudio(expoDb);
 
   if (success) {
     console.log("Migrations applied successfully");

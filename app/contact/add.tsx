@@ -3,6 +3,7 @@ import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts } from "@/db/schema";
 import { yupResolver } from "@hookform/resolvers/yup";
+import { eq } from "drizzle-orm";
 import * as Contacts from "expo-contacts";
 import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -19,7 +20,7 @@ const schema = yup.object({
     .matches(/^\+?\d{6,15}$/, "Nomor telepon tidak valid"),
   category: yup
     .string()
-    .oneOf(["supplier", "langganan", "supir", "lainnya"], "Kategori tidak valid")
+    .oneOf(["supplier", "client", "driver", "others"], "Kategori tidak valid")
     .required("Kategori wajib dipilih"),
   notes: yup.string().optional(),
 });
@@ -34,10 +35,11 @@ export default function AddContactScreen() {
     handleSubmit,
     watch,
     setValue,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", phone: "", category: "langganan" },
+    defaultValues: { name: "", phone: "", category: "client" },
   });
 
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -79,6 +81,12 @@ export default function AddContactScreen() {
 
   const onSubmit = async (data: FormValues) => {
     try {
+      const existingContact = db.select().from(contacts).where(eq(contacts.phoneNumber, data.phone)).get();
+      if (existingContact) {
+        setError("phone", { type: "manual", message: "Nomor telepon sudah terdaftar a/n " + existingContact.name });
+        return;
+      }
+
       await db.insert(contacts).values({
         name: data.name,
         phoneNumber: data.phone,
@@ -166,9 +174,9 @@ export default function AddContactScreen() {
           render={({ field: { onChange, value } }) => {
             const options = [
               { label: "Supplier", value: "supplier" },
-              { label: "Langganan", value: "langganan" },
-              { label: "Supir", value: "supir" },
-              { label: "Lainnya", value: "lainnya" },
+              { label: "Langganan", value: "client" },
+              { label: "Supir", value: "driver" },
+              { label: "Lainnya", value: "others" },
             ];
 
             return (

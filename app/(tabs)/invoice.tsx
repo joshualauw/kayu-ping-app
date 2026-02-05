@@ -294,37 +294,20 @@ export default function InvoiceScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.filterButtonContainer}>
-        <Pressable style={styles.filterButton} onPress={() => setFilterVisible(true)}>
-          <MaterialCommunityIcons name="filter-variant" size={18} color={Colors.text} />
-          <Text style={styles.filterButtonText}>
-            Filter Kontak{selectedContactName ? `: ${selectedContactName}` : ""}
-          </Text>
-        </Pressable>
-        {selectedContactName && (
-          <Pressable style={styles.clearFilterButton} onPress={handleClearFilter}>
-            <MaterialCommunityIcons name="close" size={18} color={Colors.text} />
-          </Pressable>
-        )}
-      </View>
+      <ContactFilter
+        selectedContactName={selectedContactName}
+        onOpenFilter={() => setFilterVisible(true)}
+        onClearFilter={handleClearFilter}
+      />
 
-      <View style={styles.dateFilterRow}>
-        <Pressable style={styles.dateFilterButton} onPress={() => setDateFilterVisible(true)}>
-          <MaterialCommunityIcons name="calendar" size={18} color={Colors.primary} />
-          <Text style={styles.dateFilterLabel}>{selectedDate}</Text>
-        </Pressable>
-        <View style={styles.dateNavButtons}>
-          <Pressable style={styles.statusFilterButton} onPress={() => setStatusFilterVisible(true)}>
-            <MaterialCommunityIcons name="filter-variant" size={18} color={Colors.text} />
-          </Pressable>
-          <Pressable style={styles.dateNavButton} onPress={() => handleShiftDate(-1)}>
-            <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.text} />
-          </Pressable>
-          <Pressable style={styles.dateNavButton} onPress={() => handleShiftDate(1)}>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.text} />
-          </Pressable>
-        </View>
-      </View>
+      <DateFilter
+        selectedDate={selectedDate}
+        dateFilterType={dateFilterType}
+        onOpenDateFilter={() => setDateFilterVisible(true)}
+        onStatusFilterPress={() => setStatusFilterVisible(true)}
+        onChevronLeftPress={() => handleShiftDate(-1)}
+        onChevronRightPress={() => handleShiftDate(1)}
+      />
 
       {loading && page === 1 ? (
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
@@ -360,125 +343,218 @@ export default function InvoiceScreen() {
         <MaterialCommunityIcons name="plus" size={30} color="white" />
       </Pressable>
 
-      <Modal visible={filterVisible} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={() => setFilterVisible(false)}>
-          <View style={styles.sheetOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.sheetContainer}>
-                <View style={styles.sheetHandle} />
-                <Text style={styles.sheetTitle}>Filter Kontak</Text>
-                <View style={styles.sheetSearchContainer}>
-                  <MaterialCommunityIcons name="magnify" size={18} color={Colors.border} />
-                  <TextInput
-                    style={styles.sheetSearchInput}
-                    placeholder="Cari nama kontak"
-                    placeholderTextColor={Colors.border}
-                    value={filterQuery}
-                    onChangeText={setFilterQuery}
-                  />
-                </View>
-                {contactLoading ? (
-                  <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: Spacing.sm }} />
-                ) : contactResults.length === 0 ? (
-                  <Text style={styles.sheetEmptyText}>Tidak ditemukan kontak</Text>
-                ) : (
-                  <FlatList
-                    data={contactResults}
-                    keyExtractor={(item) => item.id.toString()}
-                    style={styles.sheetList}
-                    keyboardShouldPersistTaps="handled"
-                    renderItem={({ item }) => (
-                      <Pressable
-                        style={[styles.contactRow, selectedContactId === item.id && styles.contactRowSelected]}
-                        onPress={() => handleSelectContact(item)}
-                      >
-                        <Text style={styles.contactName}>{item.name}</Text>
-                        <Text style={styles.contactPhone}>{item.phoneNumber}</Text>
-                      </Pressable>
-                    )}
-                  />
-                )}
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <ContactFilterModal
+        visible={filterVisible}
+        onClose={() => setFilterVisible(false)}
+        selectedContactId={selectedContactId}
+        filterQuery={filterQuery}
+        onFilterQueryChange={setFilterQuery}
+        contactResults={contactResults}
+        contactLoading={contactLoading}
+        onSelectContact={handleSelectContact}
+      />
 
-      <Modal visible={dateFilterVisible} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={() => setDateFilterVisible(false)}>
-          <View style={styles.sheetOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.sheetContainer}>
-                <View style={styles.sheetHandle} />
-                <Text style={styles.sheetTitle}>Filter Tanggal</Text>
-                <View style={styles.datePresetList}>
-                  <Pressable style={styles.datePresetItem} onPress={() => handleSelectDateFilter("day")}>
-                    <View>
-                      <Text style={styles.datePresetTop}>Hari ini</Text>
-                      <Text style={styles.datePresetBottom}>{dayjs().format("DD MMM YYYY")}</Text>
-                    </View>
-                  </Pressable>
-                  <Pressable style={styles.datePresetItem} onPress={() => handleSelectDateFilter("week")}>
-                    <View>
-                      <Text style={styles.datePresetTop}>Minggu ini</Text>
-                      <Text style={styles.datePresetBottom}>
-                        {dayjs().startOf("week").format("DD MMM YYYY")} - {dayjs().endOf("week").format("DD MMM YYYY")}
-                      </Text>
-                    </View>
-                  </Pressable>
-                  <Pressable style={styles.datePresetItem} onPress={() => handleSelectDateFilter("month")}>
-                    <View>
-                      <Text style={styles.datePresetTop}>Bulan ini</Text>
-                      <Text style={styles.datePresetBottom}>{dayjs().format("MMM YYYY")}</Text>
-                    </View>
-                  </Pressable>
-                  <Pressable style={styles.datePresetItem} onPress={() => handleSelectDateFilter("year")}>
-                    <View>
-                      <Text style={styles.datePresetTop}>Tahun ini</Text>
-                      <Text style={styles.datePresetBottom}>{dayjs().format("YYYY")}</Text>
-                    </View>
-                  </Pressable>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <DateFilterModal
+        visible={dateFilterVisible}
+        onClose={() => setDateFilterVisible(false)}
+        onSelectDateFilter={handleSelectDateFilter}
+        dateFilterType={dateFilterType}
+      />
 
-      <Modal visible={statusFilterVisible} transparent animationType="fade">
-        <TouchableWithoutFeedback onPress={() => setStatusFilterVisible(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.dropdownMenu}>
-              <Text style={styles.dropdownTitle}>Filter Status</Text>
-              {[
-                { label: "Semua", value: "all" },
-                { label: "Lunas", value: "paid" },
-                { label: "Belum Lunas", value: "pending" },
-              ].map((item) => {
-                const isSelected = selectedStatus === item.value;
-
-                return (
-                  <Pressable
-                    key={item.value}
-                    style={({ pressed }) => [
-                      styles.dropdownItem,
-                      pressed && { backgroundColor: "#F3F4F6" },
-                      isSelected && { backgroundColor: Colors.primary + "10" },
-                    ]}
-                    onPress={() => handleSelectStatus(item.value as "all" | "paid" | "pending")}
-                  >
-                    <Text style={[styles.dropdownItemText, isSelected && { color: Colors.primary, fontWeight: "700" }]}>
-                      {item.label}
-                    </Text>
-                    {isSelected && <MaterialCommunityIcons name="check" size={18} color={Colors.primary} />}
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <StatusFilterModal
+        visible={statusFilterVisible}
+        onClose={() => setStatusFilterVisible(false)}
+        selectedStatus={selectedStatus}
+        onSelectStatus={handleSelectStatus}
+      />
     </Container>
+  );
+}
+
+export function ContactFilter({ selectedContactName, onOpenFilter, onClearFilter }: any) {
+  return (
+    <View style={styles.filterButtonContainer}>
+      <Pressable style={styles.filterButton} onPress={onOpenFilter}>
+        <MaterialCommunityIcons name="filter-variant" size={18} color={Colors.text} />
+        <Text style={styles.filterButtonText}>{selectedContactName ? `${selectedContactName}` : "Filter Kontak"}</Text>
+      </Pressable>
+      {selectedContactName && (
+        <Pressable style={styles.clearFilterButton} onPress={onClearFilter}>
+          <MaterialCommunityIcons name="close" size={18} color={Colors.text} />
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+export function DateFilter({
+  selectedDate,
+  dateFilterType,
+  onOpenDateFilter,
+  onStatusFilterPress,
+  onChevronLeftPress,
+  onChevronRightPress,
+}: any) {
+  return (
+    <View style={styles.dateFilterRow}>
+      <Pressable style={styles.dateFilterButton} onPress={onOpenDateFilter}>
+        <MaterialCommunityIcons name="calendar" size={18} color={Colors.primary} />
+        <Text style={styles.dateFilterLabel}>{selectedDate}</Text>
+      </Pressable>
+      <View style={styles.dateNavButtons}>
+        <Pressable style={styles.statusFilterButton} onPress={onStatusFilterPress}>
+          <MaterialCommunityIcons name="filter-variant" size={18} color={Colors.text} />
+        </Pressable>
+        <Pressable style={styles.dateNavButton} onPress={onChevronLeftPress}>
+          <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.text} />
+        </Pressable>
+        <Pressable style={styles.dateNavButton} onPress={onChevronRightPress}>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.text} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+export function ContactFilterModal({
+  visible,
+  onClose,
+  selectedContactId,
+  filterQuery,
+  onFilterQueryChange,
+  contactResults,
+  contactLoading,
+  onSelectContact,
+}: any) {
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.sheetOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.sheetContainer}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>Filter Kontak</Text>
+              <View style={styles.sheetSearchContainer}>
+                <MaterialCommunityIcons name="magnify" size={18} color={Colors.border} />
+                <TextInput
+                  style={styles.sheetSearchInput}
+                  placeholder="Cari nama kontak"
+                  placeholderTextColor={Colors.border}
+                  value={filterQuery}
+                  onChangeText={onFilterQueryChange}
+                />
+              </View>
+              {contactLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: Spacing.sm }} />
+              ) : contactResults.length === 0 ? (
+                <Text style={styles.sheetEmptyText}>Tidak ditemukan kontak</Text>
+              ) : (
+                <FlatList
+                  data={contactResults}
+                  keyExtractor={(item) => item.id.toString()}
+                  style={styles.sheetList}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item }) => (
+                    <Pressable
+                      style={[styles.contactRow, selectedContactId === item.id && styles.contactRowSelected]}
+                      onPress={() => onSelectContact(item)}
+                    >
+                      <Text style={styles.contactName}>{item.name}</Text>
+                      <Text style={styles.contactPhone}>{item.phoneNumber}</Text>
+                    </Pressable>
+                  )}
+                />
+              )}
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+}
+
+export function DateFilterModal({ visible, onClose, onSelectDateFilter, dateFilterType }: any) {
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.sheetOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.sheetContainer}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>Filter Tanggal</Text>
+              <View style={styles.datePresetList}>
+                <Pressable style={styles.datePresetItem} onPress={() => onSelectDateFilter("day")}>
+                  <View>
+                    <Text style={styles.datePresetTop}>Hari ini</Text>
+                    <Text style={styles.datePresetBottom}>{dayjs().format("DD MMM YYYY")}</Text>
+                  </View>
+                </Pressable>
+                <Pressable style={styles.datePresetItem} onPress={() => onSelectDateFilter("week")}>
+                  <View>
+                    <Text style={styles.datePresetTop}>Minggu ini</Text>
+                    <Text style={styles.datePresetBottom}>
+                      {dayjs().startOf("week").format("DD MMM YYYY")} - {dayjs().endOf("week").format("DD MMM YYYY")}
+                    </Text>
+                  </View>
+                </Pressable>
+                <Pressable style={styles.datePresetItem} onPress={() => onSelectDateFilter("month")}>
+                  <View>
+                    <Text style={styles.datePresetTop}>Bulan ini</Text>
+                    <Text style={styles.datePresetBottom}>{dayjs().format("MMM YYYY")}</Text>
+                  </View>
+                </Pressable>
+                <Pressable style={styles.datePresetItem} onPress={() => onSelectDateFilter("year")}>
+                  <View>
+                    <Text style={styles.datePresetTop}>Tahun ini</Text>
+                    <Text style={styles.datePresetBottom}>{dayjs().format("YYYY")}</Text>
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+}
+
+export function StatusFilterModal({ visible, onClose, selectedStatus, onSelectStatus }: any) {
+  const statuses = [
+    { label: "Semua", value: "all" },
+    { label: "Lunas", value: "paid" },
+    { label: "Belum Lunas", value: "pending" },
+  ];
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.dropdownMenu}>
+            <Text style={styles.dropdownTitle}>Filter Status</Text>
+            {statuses.map((item) => {
+              const isSelected = selectedStatus === item.value;
+
+              return (
+                <Pressable
+                  key={item.value}
+                  style={({ pressed }) => [
+                    styles.dropdownItem,
+                    pressed && { backgroundColor: "#F3F4F6" },
+                    isSelected && { backgroundColor: Colors.primary + "10" },
+                  ]}
+                  onPress={() => onSelectStatus(item.value as "all" | "paid" | "pending")}
+                >
+                  <Text style={[styles.dropdownItemText, isSelected && { color: Colors.primary, fontWeight: "700" }]}>
+                    {item.label}
+                  </Text>
+                  {isSelected && <MaterialCommunityIcons name="check" size={18} color={Colors.primary} />}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
   );
 }
 

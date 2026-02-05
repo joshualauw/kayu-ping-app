@@ -7,6 +7,7 @@ import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts } from "@/db/schema";
 import { useDeleteConfirm } from "@/hooks/useDeleteConfirm";
+import { getContactCategoryLabel } from "@/lib/label-helper";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { eq } from "drizzle-orm";
@@ -95,8 +96,7 @@ export default function ContactDetailScreen() {
             <Text style={styles.avatarText}>{contact.name.charAt(0).toUpperCase()}</Text>
           </View>
           <Text style={styles.name}>{contact.name}</Text>
-          <Text style={styles.categoryTag}>{contact.category.toUpperCase()}</Text>
-
+          <Text style={styles.categoryTag}>{getContactCategoryLabel(contact.category).toUpperCase()}</Text>
           <View style={styles.buttonRow}>
             <Pressable
               style={[styles.actionButton, styles.editButton]}

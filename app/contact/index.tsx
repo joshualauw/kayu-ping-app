@@ -37,6 +37,7 @@ export default function ContactScreen() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilterVisible, setCategoryFilterVisible] = useState(false);
 
   const loadMore = () => {
     if (!hasMore || loading) return;
@@ -105,6 +106,19 @@ export default function ContactScreen() {
     }, [searchQuery, selectedCategory]),
   );
 
+  function getCategoryLabel(category: string) {
+    switch (category) {
+      case "supplier":
+        return "Supplier";
+      case "client":
+        return "Langganan";
+      case "driver":
+        return "Supir";
+      default:
+        return "Lainnya";
+    }
+  }
+
   const renderItem = ({ item }: { item: ContactListItem }) => (
     <Pressable
       onPress={() => router.push(`/contact/${item.id}`)}
@@ -119,7 +133,7 @@ export default function ContactScreen() {
       <View style={styles.infoColumn}>
         <Text style={styles.nameText}>{item.name}</Text>
         <Text style={styles.phoneText}>{item.phoneNumber}</Text>
-        <Badge label={item.category} />
+        <Badge label={getCategoryLabel(item.category)} />
       </View>
     </Pressable>
   );
@@ -138,6 +152,12 @@ export default function ContactScreen() {
       <SearchBar
         searchQuery={searchQuery}
         onChangeText={setSearchQuery}
+        selectedCategory={selectedCategory}
+        onOpenFilter={() => setCategoryFilterVisible(true)}
+      />
+      <CategoryFilterModal
+        visible={categoryFilterVisible}
+        onClose={() => setCategoryFilterVisible(false)}
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
       />
@@ -177,22 +197,7 @@ export default function ContactScreen() {
   );
 }
 
-export function SearchBar({ searchQuery, onChangeText, selectedCategory, onSelectCategory }: any) {
-  const [visible, setVisible] = useState(false);
-
-  const categories = [
-    { label: "Semua", value: "all" },
-    { label: "Supplier", value: "supplier" },
-    { label: "Langganan", value: "client" },
-    { label: "Supir", value: "driver" },
-    { label: "Lainnya", value: "others" },
-  ];
-
-  const handleSelect = (category: string) => {
-    onSelectCategory(category);
-    setVisible(false);
-  };
-
+export function SearchBar({ searchQuery, onChangeText, selectedCategory, onOpenFilter }: any) {
   return (
     <View style={styles.searchContainer}>
       <MaterialCommunityIcons name="magnify" size={20} color={Colors.border} style={styles.searchIcon} />
@@ -204,44 +209,59 @@ export function SearchBar({ searchQuery, onChangeText, selectedCategory, onSelec
         onChangeText={onChangeText}
       />
 
-      <Pressable style={styles.searchFilterButton} onPress={() => setVisible(true)}>
+      <Pressable style={styles.searchFilterButton} onPress={onOpenFilter}>
         <MaterialCommunityIcons
           name="filter-variant"
           size={18}
           color={selectedCategory !== "all" ? Colors.primary : Colors.text}
         />
       </Pressable>
-
-      <Modal visible={visible} transparent animationType="fade">
-        <TouchableWithoutFeedback onPress={() => setVisible(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.dropdownMenu}>
-              <Text style={styles.dropdownTitle}>Filter Kategori</Text>
-              {categories.map((item) => {
-                const isSelected = selectedCategory === item.value;
-
-                return (
-                  <Pressable
-                    key={item.value}
-                    style={({ pressed }) => [
-                      styles.dropdownItem,
-                      pressed && { backgroundColor: "#F3F4F6" },
-                      isSelected && { backgroundColor: Colors.primary + "10" },
-                    ]}
-                    onPress={() => handleSelect(item.value)}
-                  >
-                    <Text style={[styles.dropdownItemText, isSelected && { color: Colors.primary, fontWeight: "700" }]}>
-                      {item.label}
-                    </Text>
-                    {isSelected && <MaterialCommunityIcons name="check" size={18} color={Colors.primary} />}
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
     </View>
+  );
+}
+
+export function CategoryFilterModal({ visible, onClose, selectedCategory, onSelectCategory }: any) {
+  const categories = [
+    { label: "Semua", value: "all" },
+    { label: "Supplier", value: "supplier" },
+    { label: "Langganan", value: "client" },
+    { label: "Supir", value: "driver" },
+    { label: "Lainnya", value: "others" },
+  ];
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.dropdownMenu}>
+            <Text style={styles.dropdownTitle}>Filter Kategori</Text>
+            {categories.map((item) => {
+              const isSelected = selectedCategory === item.value;
+
+              return (
+                <Pressable
+                  key={item.value}
+                  style={({ pressed }) => [
+                    styles.dropdownItem,
+                    pressed && { backgroundColor: "#F3F4F6" },
+                    isSelected && { backgroundColor: Colors.primary + "10" },
+                  ]}
+                  onPress={() => {
+                    onSelectCategory(item.value);
+                    onClose();
+                  }}
+                >
+                  <Text style={[styles.dropdownItemText, isSelected && { color: Colors.primary, fontWeight: "700" }]}>
+                    {item.label}
+                  </Text>
+                  {isSelected && <MaterialCommunityIcons name="check" size={18} color={Colors.primary} />}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
   );
 }
 

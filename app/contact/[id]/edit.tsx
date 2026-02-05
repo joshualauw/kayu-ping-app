@@ -20,7 +20,7 @@ const schema = yup
       .matches(/^\+?\d{6,15}$/, "Nomor telepon tidak valid"),
     category: yup
       .string()
-      .oneOf(["supplier", "langganan", "supir", "lainnya"], "Kategori tidak valid")
+      .oneOf(["supplier", "client", "driver", "others"], "Kategori tidak valid")
       .required("Kategori wajib dipilih"),
     note: yup.string().optional(),
   })
@@ -41,7 +41,7 @@ export default function ContactEditScreen() {
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", phone: "", category: "langganan", note: "" },
+    defaultValues: { name: "", phone: "", category: "client", note: "" },
   });
 
   useEffect(() => {
@@ -161,9 +161,9 @@ export default function ContactEditScreen() {
           render={({ field: { onChange, value } }) => {
             const options = [
               { label: "Supplier", value: "supplier" },
-              { label: "Langganan", value: "langganan" },
-              { label: "Supir", value: "supir" },
-              { label: "Lainnya", value: "lainnya" },
+              { label: "Langganan", value: "client" },
+              { label: "Supir", value: "driver" },
+              { label: "Lainnya", value: "others" },
             ];
 
             return (
