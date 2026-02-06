@@ -23,6 +23,7 @@ import {
 
 interface InvoiceListItem {
   id: number;
+  code: string;
   clientName: string;
   entryDate: string;
   amount: number;
@@ -51,8 +52,8 @@ export default function InvoiceScreen() {
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
   const [selectedContactName, setSelectedContactName] = useState<string | null>(null);
   const [dateFilterVisible, setDateFilterVisible] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string>(dayjs().format("DD MMM YYYY"));
-  const [dateFilterType, setDateFilterType] = useState<"day" | "week" | "month" | "year">("day");
+  const [selectedDate, setSelectedDate] = useState<string>(dayjs().format("MMM YYYY"));
+  const [dateFilterType, setDateFilterType] = useState<"day" | "week" | "month" | "year">("month");
   const [dateAnchor, setDateAnchor] = useState(dayjs());
   const [statusFilterVisible, setStatusFilterVisible] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<"all" | "paid" | "pending">("all");
@@ -117,6 +118,7 @@ export default function InvoiceScreen() {
       const res = await db
         .select({
           id: invoices.id,
+          code: invoices.code,
           clientName: contacts.name,
           entryDate: invoices.entryDate,
           amount: invoices.amount,
@@ -257,7 +259,10 @@ export default function InvoiceScreen() {
   const renderItem = ({ item }: { item: InvoiceListItem }) => (
     <Pressable style={styles.card} android_ripple={{ color: Colors.secondary }}>
       <View style={styles.cardRow}>
-        <Text style={styles.client}>{item.clientName}</Text>
+        <View style={styles.clientInfo}>
+          {item.code && <Text style={styles.code}>#{item.code}</Text>}
+          <Text style={styles.client}>{item.clientName}</Text>
+        </View>
         <View style={[styles.status, { backgroundColor: item.status === "paid" ? Colors.accent : Colors.secondary }]}>
           <Text style={[styles.statusText, { color: item.status === "paid" ? "white" : Colors.text }]}>
             {item.status === "paid" ? "Lunas" : "Belum Lunas"}
@@ -706,15 +711,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.sm,
   },
-  cardRowSmall: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  clientInfo: {
+    flex: 1,
+    marginRight: Spacing.sm,
   },
   client: {
     fontSize: 16,
     fontWeight: "600",
     color: Colors.text,
+  },
+  code: {
+    fontSize: 12,
+    color: "#888",
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  cardRowSmall: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   meta: {
     color: Colors.text,
@@ -935,5 +950,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: Colors.text,
+  },
+  notesContainer: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  notesLabel: {
+    fontSize: 12,
+    color: "#888",
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  notesText: {
+    fontSize: 13,
+    color: Colors.text,
+    lineHeight: 18,
   },
 });

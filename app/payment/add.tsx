@@ -1,12 +1,11 @@
 import { Container } from "@/components/Container";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
-import { contacts, invoices } from "@/db/schema";
-import { generateInvoiceCode } from "@/lib/codegen";
+import { contacts, payments } from "@/db/schema";
 import { saveFileToDisk } from "@/lib/image-helper";
 import { formatDate, formatNumber, unformatNumber } from "@/lib/utils";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { eq, like } from "drizzle-orm";
+import { like } from "drizzle-orm";
 import * as ImagePicker from "expo-image-picker";
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -36,17 +35,21 @@ interface ContactDropdownItem {
 }
 
 const schema = yup.object({
-  entryDate: yup.date().required("Tanggal wajib diisi"),
+  paymentDate: yup.date().required("Tanggal wajib diisi"),
   contactId: yup.number().required("Kontak wajib dipilih"),
   amount: yup.number().required("Jumlah wajib diisi").min(1, "Jumlah harus lebih dari 0"),
-  type: yup.string().oneOf(["sales", "purchase"], "Tipe tidak valid").required("Tipe wajib dipilih"),
+  type: yup.string().oneOf(["income", "expense"], "Tipe tidak valid").required("Tipe wajib dipilih"),
+  method: yup
+    .string()
+    .oneOf(["cash", "credit_card", "bank_transfer"], "Metode tidak valid")
+    .required("Metode wajib dipilih"),
   notes: yup.string().optional(),
   mediaUri: yup.string().optional(),
 });
 
 type FormValues = yup.InferType<typeof schema>;
 
-export default function AddInvoiceScreen() {
+export default function AddPaymentScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -58,7 +61,7 @@ export default function AddInvoiceScreen() {
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(schema),
-    defaultValues: { entryDate: new Date(), contactId: 0, amount: 0, type: "sales" },
+    defaultValues: { paymentDate: new Date(), contactId: 0, amount: 0, type: "income", method: "cash" },
   });
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -66,6 +69,7 @@ export default function AddInvoiceScreen() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
+  const [methodOpen, setMethodOpen] = useState(false);
 
   const isManualSelection = useRef(false);
 
@@ -124,14 +128,12 @@ export default function AddInvoiceScreen() {
         data.mediaUri = savedUri;
       }
 
-      const contact = await db.select().from(contacts).where(eq(contacts.id, data.contactId)).get();
-
-      await db.insert(invoices).values({
-        code: generateInvoiceCode(data.type, contact?.name ?? ""),
-        entryDate: data.entryDate.toISOString(),
+      await db.insert(payments).values({
+        paymentDate: data.paymentDate.toISOString(),
         contactId: data.contactId,
         amount: data.amount,
         type: data.type,
+        method: data.method,
         notes: data.notes,
         mediaUri: data.mediaUri,
       });
@@ -139,7 +141,7 @@ export default function AddInvoiceScreen() {
       Toast.show({
         type: "success",
         text1: "Berhasil!",
-        text2: "Nota berhasil disimpan",
+        text2: "Pembayaran berhasil disimpan",
       });
 
       router.back();
@@ -155,7 +157,7 @@ export default function AddInvoiceScreen() {
 
   return (
     <Container>
-      <Stack.Screen options={{ title: "Tambah Nota" }} />
+      <Stack.Screen options={{ title: "Tambah Pembayaran" }} />
       <KeyboardAvoidingView style={styles.keyboardAvoiding} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView
           contentContainerStyle={[styles.form, { paddingBottom: Spacing.lg + insets.bottom }]}
@@ -197,16 +199,16 @@ export default function AddInvoiceScreen() {
           />
           {errors.contactId && <Text style={styles.error}>{errors.contactId.message}</Text>}
 
-          <Text style={styles.label}>Tanggal Nota</Text>
+          <Text style={styles.label}>Tanggal Pembayaran</Text>
           <Controller
             control={control}
-            name="entryDate"
+            name="paymentDate"
             render={({ field: { onChange, onBlur, value } }) => (
               <View>
                 <Pressable onPress={() => setDatePickerVisibility(true)}>
                   <View pointerEvents="none">
                     <TextInput
-                      style={[styles.input, errors.entryDate && styles.inputError]}
+                      style={[styles.input, errors.paymentDate && styles.inputError]}
                       placeholder="Pilih Tanggal"
                       value={formatDate(value)}
                       editable={false}
@@ -226,7 +228,7 @@ export default function AddInvoiceScreen() {
               </View>
             )}
           />
-          {errors.entryDate && <Text style={styles.error}>{errors.entryDate.message}</Text>}
+          {errors.paymentDate && <Text style={styles.error}>{errors.paymentDate.message}</Text>}
 
           <Text style={styles.label}>Tipe</Text>
           <Controller
@@ -234,8 +236,8 @@ export default function AddInvoiceScreen() {
             name="type"
             render={({ field: { onChange, value } }) => {
               const options = [
-                { label: "Penjualan", value: "sales" },
-                { label: "Pembelian", value: "purchase" },
+                { label: "Pemasukan", value: "income" },
+                { label: "Pengeluaran", value: "expense" },
               ];
 
               return (
@@ -270,6 +272,50 @@ export default function AddInvoiceScreen() {
             }}
           />
           {errors.type && <Text style={styles.error}>{errors.type.message}</Text>}
+
+          <Text style={styles.label}>Metode Pembayaran</Text>
+          <Controller
+            control={control}
+            name="method"
+            render={({ field: { onChange, value } }) => {
+              const options = [
+                { label: "Tunai", value: "cash" },
+                { label: "Transfer Bank", value: "bank_transfer" },
+                { label: "Lainnya", value: "others" },
+              ];
+
+              return (
+                <>
+                  <Pressable
+                    style={[styles.input, errors.method && styles.inputError]}
+                    onPress={() => setMethodOpen((s) => !s)}
+                  >
+                    <Text style={{ color: value ? Colors.text : Colors.border }}>
+                      {value ? options.find((o) => o.value === value)?.label : "Pilih Metode"}
+                    </Text>
+                  </Pressable>
+
+                  {methodOpen && (
+                    <View style={styles.dropdown}>
+                      {options.map((opt) => (
+                        <Pressable
+                          key={opt.value}
+                          style={styles.option}
+                          onPress={() => {
+                            onChange(opt.value);
+                            setMethodOpen(false);
+                          }}
+                        >
+                          <Text>{opt.label}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </>
+              );
+            }}
+          />
+          {errors.method && <Text style={styles.error}>{errors.method.message}</Text>}
 
           <Text style={styles.label}>Jumlah (Rp.)</Text>
           <Controller

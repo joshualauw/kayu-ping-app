@@ -12,6 +12,7 @@ export const contacts = sqliteTable("contacts", {
 
 export const invoices = sqliteTable("invoices", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  code: text("code").notNull().unique(),
   entryDate: text("entry_date").notNull(),
   contactId: integer("contact_id").references(() => contacts.id, { onDelete: "cascade" }),
   amount: integer("amount").notNull(),

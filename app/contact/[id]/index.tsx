@@ -123,7 +123,6 @@ export default function ContactDetailScreen() {
 
         <View style={styles.infoBox}>
           <InfoItem label="Nomor Telepon" value={contact.phoneNumber} icon="call-outline" />
-          <InfoItem label="Kategori" value={contact.category} icon="pricetag-outline" />
           {contact.notes && <InfoItem label="Notes" value={contact.notes} icon="document-text-outline" />}
           <InfoItem
             label="Ditambahkan Pada"
