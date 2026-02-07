@@ -18,7 +18,6 @@ export const invoices = sqliteTable("invoices", {
   amount: integer("amount").notNull(),
   type: text("type").notNull(), // sales, purchase
   notes: text("notes"),
-  status: text("status").notNull().default("pending"), // pending, paid
   mediaUri: text("media_uri"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });

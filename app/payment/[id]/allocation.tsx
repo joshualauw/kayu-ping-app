@@ -5,9 +5,10 @@ import { invoices, paymentAllocations, payments } from "@/db/schema";
 import { formatCurrency, formatNumber, unformatNumber } from "@/lib/utils";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { and, eq } from "drizzle-orm";
-import { Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useState } from "react";
+import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import Toast from "react-native-toast-message";
 
 interface AllocationItem {
   id: string;
@@ -18,13 +19,15 @@ interface AllocationItem {
 interface InvoiceOption {
   id: number;
   code: string;
-  remainingAmount: number;
+  amount: number;
+  entryDate: string;
 }
 
 interface PaymentData {
   id: number;
   amount: number;
   contactId: number | null;
+  type: string;
 }
 
 export default function PaymentAllocationScreen() {
@@ -34,6 +37,7 @@ export default function PaymentAllocationScreen() {
   const [invoiceOptions, setInvoiceOptions] = useState<InvoiceOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -47,6 +51,7 @@ export default function PaymentAllocationScreen() {
               id: payments.id,
               amount: payments.amount,
               contactId: payments.contactId,
+              type: payments.type,
             })
             .from(payments)
             .where(eq(payments.id, Number(id)))
@@ -60,46 +65,23 @@ export default function PaymentAllocationScreen() {
           const paymentData = paymentResult[0];
           setPayment(paymentData);
 
-          if (paymentData) {
-            const existingAllocations = await db
-              .select({
-                id: paymentAllocations.id,
-                invoiceId: paymentAllocations.invoiceId,
-                amount: paymentAllocations.amount,
-              })
-              .from(paymentAllocations)
-              .where(eq(paymentAllocations.paymentId, paymentData.id));
-
-            if (existingAllocations.length > 0) {
-              setAllocations(
-                existingAllocations.map((a) => ({
-                  id: a.id.toString(),
-                  invoiceId: a.invoiceId || null,
-                  amount: a.amount,
-                })),
-              );
-            }
-          }
-
           if (paymentData.contactId) {
             const invoiceResult = await db
               .select({
                 id: invoices.id,
                 code: invoices.code,
                 amount: invoices.amount,
+                entryDate: invoices.entryDate,
               })
               .from(invoices)
               .where(
                 and(
                   eq(invoices.contactId, paymentData.contactId),
-                  eq(invoices.status, "pending"),
-                  eq(invoices.type, "sales"),
+                  eq(invoices.type, paymentData.type === "income" ? "sales" : "purchase"),
                 ),
               )
-              .orderBy(invoices.id)
-              .limit(100);
+              .orderBy(invoices.id);
 
-            // Calculate remaining amount for each invoice
             const invoicesWithRemaining = await Promise.all(
               invoiceResult.map(async (inv) => {
                 const allocatedToInvoice = await db
@@ -114,12 +96,12 @@ export default function PaymentAllocationScreen() {
 
                 return {
                   ...inv,
-                  remainingAmount: remaining > 0 ? remaining : 0,
+                  amount: remaining > 0 ? remaining : 0,
                 };
               }),
             );
 
-            setInvoiceOptions(invoicesWithRemaining);
+            setInvoiceOptions(invoicesWithRemaining.filter((inv) => inv.amount > 0));
           }
         } catch (error) {
           console.error(error);
@@ -132,6 +114,45 @@ export default function PaymentAllocationScreen() {
     }, [id]),
   );
 
+  async function onSave() {
+    if (!payment) return;
+
+    try {
+      setLoading(true);
+
+      await db.transaction(async (tx) => {
+        await tx.delete(paymentAllocations).where(eq(paymentAllocations.paymentId, payment.id));
+
+        if (allocations.length > 0) {
+          await tx.insert(paymentAllocations).values(
+            allocations.map((a) => ({
+              paymentId: payment.id,
+              invoiceId: a.invoiceId!,
+              amount: a.amount,
+            })),
+          );
+        }
+      });
+
+      Toast.show({
+        type: "success",
+        text1: "Berhasil!",
+        text2: "Alokasi berhasil disimpan",
+      });
+
+      router.back();
+    } catch (error) {
+      console.error(error);
+      Toast.show({
+        type: "error",
+        text1: "Gagal!",
+        text2: "Terjadi kesalahan saat menyimpan alokasi",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const addAllocation = () => {
     const newId = Date.now().toString();
     setAllocations([...allocations, { id: newId, invoiceId: null, amount: 0 }]);
@@ -143,13 +164,14 @@ export default function PaymentAllocationScreen() {
     const newAllocations: AllocationItem[] = [];
     let remainingBalance = payment.amount;
 
-    // Sort invoices by id (oldest first)
-    const sortedInvoices = [...invoiceOptions].sort((a, b) => a.id - b.id);
+    const sortedInvoices = [...invoiceOptions].sort((a, b) => {
+      return new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime();
+    });
 
     for (const invoice of sortedInvoices) {
       if (remainingBalance <= 0) break;
 
-      const amountToAllocate = Math.min(remainingBalance, invoice.remainingAmount);
+      const amountToAllocate = Math.min(remainingBalance, invoice.amount);
 
       newAllocations.push({
         id: Date.now().toString() + Math.random(),
@@ -211,7 +233,7 @@ export default function PaymentAllocationScreen() {
                   }}
                 >
                   <Text style={styles.optionText}>{inv.code}</Text>
-                  <Text style={styles.optionAmount}>Sisa: {formatCurrency(inv.remainingAmount)}</Text>
+                  <Text style={styles.optionAmount}>Sisa: {formatCurrency(inv.amount)}</Text>
                 </Pressable>
               ))}
             </View>
@@ -221,9 +243,7 @@ export default function PaymentAllocationScreen() {
         <View>
           <Text style={styles.amountLabel}>Jumlah (Rp.)</Text>
           <View style={styles.amountInputRow}>
-            <Text style={styles.amountPrefix}>
-              {matchingInvoice ? formatCurrency(matchingInvoice.remainingAmount) : "Rp 0"}
-            </Text>
+            <Text style={styles.amountPrefix}>{matchingInvoice ? formatCurrency(matchingInvoice.amount) : "Rp 0"}</Text>
             <Text style={styles.amountSeparator}>-</Text>
             <TextInput
               style={[styles.input, styles.amountInputField]}
@@ -241,10 +261,10 @@ export default function PaymentAllocationScreen() {
             <Text
               style={[
                 styles.remainingAmount,
-                matchingInvoice && matchingInvoice.remainingAmount - item.amount <= 0 && styles.remainingDanger,
+                matchingInvoice && matchingInvoice.amount - item.amount <= 0 && styles.remainingDanger,
               ]}
             >
-              {formatCurrency(matchingInvoice ? matchingInvoice.remainingAmount - item.amount : 0)}
+              {formatCurrency(matchingInvoice ? matchingInvoice.amount - item.amount : 0)}
             </Text>
           </View>
         </View>
@@ -252,10 +272,44 @@ export default function PaymentAllocationScreen() {
     );
   };
 
-  if (loading || !payment) return <Text>Loading...</Text>;
-
   const remaining = getRemainingBalance();
   const isNegativeBalance = remaining < 0;
+
+  useEffect(() => {
+    const validate = () => {
+      const hasDuplicateInvoices = new Set(allocations.map((a) => a.invoiceId)).size !== allocations.length;
+      if (hasDuplicateInvoices) {
+        return "Ada duplikasi pada pilihan nota.";
+      }
+
+      if (allocations.some((a) => !a.invoiceId)) {
+        return "Semua baris harus memiliki nota yang dipilih.";
+      }
+      if (allocations.some((a) => a.amount <= 0)) {
+        return "Semua jumlah alokasi harus lebih besar dari nol.";
+      }
+
+      const overAllocated = allocations.some((a) => {
+        const inv = invoiceOptions.find((i) => i.id === a.invoiceId);
+        return inv && a.amount > inv.amount;
+      });
+      if (overAllocated) {
+        return "Satu atau lebih alokasi melebihi sisa saldo nota.";
+      }
+
+      if (remaining < 0) {
+        return "Total alokasi melebihi jumlah pembayaran.";
+      }
+
+      return null;
+    };
+
+    setError(validate());
+  }, [allocations, invoiceOptions, remaining]);
+
+  const disableSave = !!error;
+
+  if (loading || !payment) return <Text>Loading...</Text>;
 
   return (
     <Container>
@@ -290,11 +344,13 @@ export default function PaymentAllocationScreen() {
         </View>
 
         <Pressable
-          style={[styles.saveButton, isNegativeBalance && styles.saveButtonDisabled]}
-          disabled={isNegativeBalance}
+          style={[styles.saveButton, disableSave && styles.saveButtonDisabled]}
+          disabled={disableSave}
+          onPress={onSave}
         >
           <Text style={styles.saveButtonText}>Simpan</Text>
         </Pressable>
+        <Text style={styles.errorText}>{error}</Text>
       </ScrollView>
     </Container>
   );
@@ -490,5 +546,10 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "600",
     fontSize: 16,
+  },
+  errorText: {
+    color: Colors.danger,
+    marginTop: Spacing.sm,
+    textAlign: "center",
   },
 });

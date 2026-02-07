@@ -107,9 +107,6 @@ export default function InvoiceScreen() {
       if (contactId) {
         filters.push(eq(invoices.contactId, contactId));
       }
-      if (status !== "all") {
-        filters.push(eq(invoices.status, status));
-      }
       if (startDate && endDate) {
         filters.push(gte(invoices.entryDate, startDate));
         filters.push(lte(invoices.entryDate, endDate));
@@ -123,7 +120,6 @@ export default function InvoiceScreen() {
           entryDate: invoices.entryDate,
           amount: invoices.amount,
           paidAmount: sql<number>`CAST(COALESCE(SUM(${paymentAllocations.amount}), 0) AS INTEGER)`,
-          status: invoices.status,
           type: invoices.type,
         })
         .from(invoices)
@@ -131,31 +127,35 @@ export default function InvoiceScreen() {
         .leftJoin(paymentAllocations, eq(invoices.id, paymentAllocations.invoiceId))
         .where(and(...filters))
         .groupBy(invoices.id, contacts.name)
-        .orderBy(desc(invoices.entryDate), sql`CASE WHEN ${invoices.status} = 'pending' THEN 0 ELSE 1 END`)
+        .orderBy(desc(invoices.entryDate))
         .limit(limit)
         .offset(offset);
 
-      const dataWithRemaining = res.map((item) => ({
-        ...item,
-        paidAmount: Number(item.paidAmount) || 0,
-        remainingAmount: item.amount - (Number(item.paidAmount) || 0),
-      }));
+      const dataWithRemaining = res.map((item) => {
+        const paidAmount = Number(item.paidAmount) || 0;
+        const remainingAmount = item.amount - paidAmount;
+        const derivedStatus: "pending" | "paid" = paidAmount >= item.amount ? "paid" : "pending";
 
-      const totalUnpaidResult = await db
-        .select({
-          totalUnpaid: sql<number>`COALESCE(SUM(${invoices.amount}) - SUM(COALESCE(${paymentAllocations.amount}, 0)), 0)`,
-        })
-        .from(invoices)
-        .leftJoin(paymentAllocations, eq(invoices.id, paymentAllocations.invoiceId))
-        .where(and(...filters, eq(invoices.status, "pending")));
+        return {
+          ...item,
+          paidAmount,
+          remainingAmount,
+          status: derivedStatus,
+        };
+      });
 
-      const unpaidAmount = totalUnpaidResult[0]?.totalUnpaid ? Number(totalUnpaidResult[0].totalUnpaid) : 0;
+      const filteredData =
+        status === "all" ? dataWithRemaining : dataWithRemaining.filter((item) => item.status === status);
+
+      const unpaidAmount = dataWithRemaining
+        .filter((item) => item.status === "pending")
+        .reduce((sum, item) => sum + item.remainingAmount, 0);
       setTotalUnpaid(unpaidAmount);
 
       if (append) {
-        setData((prev) => [...prev, ...(dataWithRemaining as InvoiceListItem[])]);
+        setData((prev) => [...prev, ...(filteredData as InvoiceListItem[])]);
       } else {
-        setData(dataWithRemaining as InvoiceListItem[]);
+        setData(filteredData as InvoiceListItem[]);
       }
 
       setHasMore(res.length === limit);
