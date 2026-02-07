@@ -6,6 +6,7 @@ export const Colors = {
   accent: "#27AE60",
   background: "#FFFFFF",
   danger: "#bc4521",
+  warning: "#fdd354",
 };
 
 export const Spacing = {

@@ -14,3 +14,28 @@ export const saveFileToDisk = (tempUri: string): string => {
     throw error;
   }
 };
+
+export const replaceFileOnDisk = (oldUri: string | null, newTempUri: string): string => {
+  try {
+    if (oldUri) {
+      const oldFile = new File(oldUri);
+      if (oldFile.exists) {
+        oldFile.delete();
+      }
+    }
+
+    return saveFileToDisk(newTempUri);
+  } catch (error) {
+    console.error("Failed to replace file:", error);
+    throw error;
+  }
+};
+
+export const deleteFileFromDisk = (uri: string): void => {
+  try {
+    const file = new File(uri);
+    file.delete();
+  } catch (error) {
+    console.error("Failed to delete file:", error);
+  }
+};

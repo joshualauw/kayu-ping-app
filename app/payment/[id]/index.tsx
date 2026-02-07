@@ -4,6 +4,7 @@ import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts, invoices, paymentAllocations, payments } from "@/db/schema";
 import { useDeleteConfirm } from "@/hooks/useDeleteConfirm";
+import { deleteFileFromDisk } from "@/lib/image-helper";
 import { formatCurrency } from "@/lib/utils";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
@@ -33,6 +34,10 @@ export default function PaymentDetailScreen() {
 
   const handleDelete = async (paymentId: number) => {
     try {
+      if (payment?.mediaUrl) {
+        deleteFileFromDisk(payment.mediaUrl);
+      }
+
       await db.delete(payments).where(eq(payments.id, paymentId));
 
       Toast.show({
