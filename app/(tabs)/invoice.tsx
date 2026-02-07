@@ -86,6 +86,45 @@ export default function InvoiceScreen() {
     fetchInvoices(nextPage, true, selectedType, selectedContactId, selectedStatus, startDate, endDate);
   };
 
+  const fetchTotalUnpaidAmount = async (
+    type = "sales",
+    contactId: number | null = null,
+    startDate?: string,
+    endDate?: string,
+  ) => {
+    try {
+      const filters = [eq(invoices.type, type)];
+      if (contactId) {
+        filters.push(eq(invoices.contactId, contactId));
+      }
+      if (startDate && endDate) {
+        filters.push(gte(invoices.entryDate, startDate));
+        filters.push(lte(invoices.entryDate, endDate));
+      }
+
+      const allRes = await db
+        .select({
+          id: invoices.id,
+          amount: invoices.amount,
+          paidAmount: sql<number>`CAST(COALESCE(SUM(${paymentAllocations.amount}), 0) AS INTEGER)`,
+        })
+        .from(invoices)
+        .leftJoin(paymentAllocations, eq(invoices.id, paymentAllocations.invoiceId))
+        .where(and(...filters))
+        .groupBy(invoices.id);
+
+      const totalUnpaid = allRes.reduce((sum, item) => {
+        const paidAmount = Number(item.paidAmount) || 0;
+        const remainingAmount = item.amount - paidAmount;
+        return paidAmount >= item.amount ? sum : sum + remainingAmount;
+      }, 0);
+
+      setTotalUnpaid(totalUnpaid);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const fetchInvoices = async (
     pageNum: number = 1,
     append = false,
@@ -147,11 +186,6 @@ export default function InvoiceScreen() {
       const filteredData =
         status === "all" ? dataWithRemaining : dataWithRemaining.filter((item) => item.status === status);
 
-      const unpaidAmount = dataWithRemaining
-        .filter((item) => item.status === "pending")
-        .reduce((sum, item) => sum + item.remainingAmount, 0);
-      setTotalUnpaid(unpaidAmount);
-
       if (append) {
         setData((prev) => [...prev, ...(filteredData as InvoiceListItem[])]);
       } else {
@@ -171,6 +205,7 @@ export default function InvoiceScreen() {
       setPage(1);
       const { startDate, endDate } = getDateRange(dateFilterType, dateAnchor);
       fetchInvoices(1, false, selectedType, selectedContactId, selectedStatus, startDate, endDate);
+      fetchTotalUnpaidAmount(selectedType, selectedContactId, startDate, endDate);
     }, [selectedType, selectedContactId, selectedStatus, dateFilterType, dateAnchor]),
   );
 
@@ -350,6 +385,7 @@ export default function InvoiceScreen() {
             setData([]);
             const { startDate, endDate } = getDateRange(dateFilterType, dateAnchor);
             fetchInvoices(1, false, selectedType, selectedContactId, selectedStatus, startDate, endDate);
+            fetchTotalUnpaidAmount(selectedType, selectedContactId, startDate, endDate);
           }}
           contentContainerStyle={[
             { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xs },
