@@ -353,7 +353,15 @@ export default function PaymentScreen() {
         />
       )}
 
-      <Pressable style={styles.fab} onPress={() => router.push("/payment/add")}>
+      <Pressable
+        style={styles.fab}
+        onPress={() =>
+          router.push({
+            pathname: "/payment/add",
+            params: { type: selectedType },
+          })
+        }
+      >
         <MaterialCommunityIcons name="plus" size={30} color="white" />
       </Pressable>
 

@@ -403,7 +403,15 @@ export default function InvoiceScreen() {
         />
       )}
 
-      <Pressable style={styles.fab} onPress={() => router.push("/invoice/add")}>
+      <Pressable
+        style={styles.fab}
+        onPress={() =>
+          router.push({
+            pathname: "/invoice/add",
+            params: { type: selectedType },
+          })
+        }
+      >
         <MaterialCommunityIcons name="plus" size={30} color="white" />
       </Pressable>
 

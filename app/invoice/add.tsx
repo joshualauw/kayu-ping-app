@@ -9,7 +9,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import dayjs from "dayjs";
 import { like } from "drizzle-orm";
 import * as ImagePicker from "expo-image-picker";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
@@ -50,6 +50,7 @@ type FormValues = yup.InferType<typeof schema>;
 export default function AddInvoiceScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { type } = useLocalSearchParams<{ type: "sales" | "purchase" }>();
 
   const {
     control,
@@ -59,7 +60,7 @@ export default function AddInvoiceScreen() {
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(schema),
-    defaultValues: { entryDate: new Date(), contactId: 0, amount: 0, type: "sales" },
+    defaultValues: { entryDate: new Date(), contactId: 0, amount: 0, type },
   });
 
   const [searchTerm, setSearchTerm] = useState("");
