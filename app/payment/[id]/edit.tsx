@@ -1,7 +1,7 @@
 import { Container } from "@/components/Container";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
-import { contacts, paymentAllocations, payments } from "@/db/schema";
+import { contacts, payments } from "@/db/schema";
 import { replaceFileOnDisk } from "@/lib/image-helper";
 import { formatDate, formatNumber, unformatNumber } from "@/lib/utils";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -28,19 +28,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import * as yup from "yup";
 
-interface PaymentEditData {
-  id: number;
-  paymentDate: Date;
-  contactId: number;
-  contactName: string;
-  amount: number;
-  type: "income" | "expense";
-  method: string;
-  notes: string | null;
-  mediaUri: string | null;
-  hasAllocations: boolean;
-}
-
 const schema = yup.object({
   paymentDate: yup.date().required("Tanggal wajib diisi"),
   contactId: yup.number().required("Kontak wajib dipilih"),
@@ -48,7 +35,7 @@ const schema = yup.object({
   type: yup.string().oneOf(["income", "expense"], "Tipe tidak valid").required("Tipe wajib dipilih"),
   method: yup
     .string()
-    .oneOf(["cash", "credit_card", "bank_transfer", "others"], "Metode tidak valid")
+    .oneOf(["cash", "bank_transfer", "others"], "Metode tidak valid")
     .required("Metode wajib dipilih"),
   notes: yup.string().optional(),
   mediaUri: yup.string().optional(),
@@ -64,33 +51,31 @@ export default function PaymentEditScreen() {
   const {
     control,
     handleSubmit,
-    setValue,
     setError,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(schema),
     defaultValues: { paymentDate: new Date(), contactId: 0, amount: 0, type: "income", method: "cash" },
   });
 
-  const [paymentData, setPaymentData] = useState<PaymentEditData | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
   const [methodOpen, setMethodOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [originalMediaUri, setOriginalMediaUri] = useState<string | null>(null);
 
-  // Load payment data on mount
   useEffect(() => {
     const fetchPayment = async () => {
-      if (!id) return;
       try {
         setLoading(true);
 
-        const paymentResult = await db
+        const res = await db
           .select({
             id: payments.id,
             paymentDate: payments.paymentDate,
             contactId: payments.contactId,
+            contactName: contacts.name,
             amount: payments.amount,
             type: payments.type,
             method: payments.method,
@@ -98,66 +83,30 @@ export default function PaymentEditScreen() {
             mediaUri: payments.mediaUri,
           })
           .from(payments)
+          .leftJoin(contacts, eq(payments.contactId, contacts.id))
           .where(eq(payments.id, Number(id)))
-          .limit(1);
+          .get();
 
-        if (!paymentResult.length) {
-          Toast.show({
-            type: "error",
-            text1: "Error",
-            text2: "Pembayaran tidak ditemukan",
+        if (res) {
+          reset({
+            paymentDate: new Date(res.paymentDate),
+            contactId: res.contactId || 0,
+            amount: res.amount,
+            type: res.type as FormValues["type"],
+            method: res.method as FormValues["method"],
+            notes: res.notes || "",
+            mediaUri: res.mediaUri || "",
           });
-          router.back();
-          return;
+
+          setOriginalMediaUri(res.mediaUri);
+          setSearchTerm(res.contactName || "");
         }
-
-        const payment = paymentResult[0];
-
-        // Check if payment has allocations
-        const allocations = await db
-          .select({ id: paymentAllocations.id })
-          .from(paymentAllocations)
-          .where(eq(paymentAllocations.paymentId, payment.id));
-
-        // Get contact name
-        const contactResult = await db
-          .select({ name: contacts.name, phoneNumber: contacts.phoneNumber })
-          .from(contacts)
-          .where(eq(contacts.id, payment.contactId!))
-          .limit(1);
-
-        const contactName = contactResult.length ? contactResult[0].name : "";
-
-        const editData: PaymentEditData = {
-          id: payment.id,
-          paymentDate: new Date(payment.paymentDate),
-          contactId: payment.contactId || 0,
-          contactName,
-          amount: payment.amount,
-          type: payment.type as "income" | "expense",
-          method: payment.method,
-          notes: payment.notes,
-          mediaUri: payment.mediaUri,
-          hasAllocations: allocations.length > 0,
-        };
-
-        setPaymentData(editData);
-        setOriginalMediaUri(payment.mediaUri);
-        setSearchTerm(contactName);
-
-        setValue("paymentDate", editData.paymentDate);
-        setValue("contactId", editData.contactId);
-        setValue("amount", editData.amount);
-        setValue("type", editData.type);
-        setValue("method", editData.method as any);
-        setValue("notes", editData.notes || "");
-        setValue("mediaUri", editData.mediaUri || "");
       } catch (error) {
         console.error(error);
         Toast.show({
           type: "error",
           text1: "Error",
-          text2: "Gagal memuat data pembayaran",
+          text2: "Terjadi kesalahan saat memuat data",
         });
       } finally {
         setLoading(false);
@@ -207,12 +156,12 @@ export default function PaymentEditScreen() {
       Toast.show({
         type: "error",
         text1: "Gagal!",
-        text2: "Terjadi kesalahan saat memperbarui",
+        text2: "Terjadi kesalahan saat menyimpan",
       });
     }
   };
 
-  if (loading || !paymentData) {
+  if (loading) {
     return (
       <Container>
         <Stack.Screen options={{ title: "Ubah Pembayaran" }} />
@@ -308,7 +257,6 @@ export default function PaymentEditScreen() {
               const options = [
                 { label: "Tunai", value: "cash" },
                 { label: "Transfer Bank", value: "bank_transfer" },
-                { label: "Kartu Kredit", value: "credit_card" },
                 { label: "Lainnya", value: "others" },
               ];
 
@@ -351,11 +299,7 @@ export default function PaymentEditScreen() {
             name="amount"
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
-                style={[
-                  styles.input,
-                  paymentData.hasAllocations && styles.disabledInput,
-                  errors.amount && styles.inputError,
-                ]}
+                style={[styles.input, styles.disabledInput, errors.amount && styles.inputError]}
                 placeholder="Masukkan Jumlah"
                 onChangeText={(text) => {
                   const cleanNumber = unformatNumber(text);
@@ -364,7 +308,7 @@ export default function PaymentEditScreen() {
                 value={formatNumber(value)}
                 keyboardType="numeric"
                 onBlur={onBlur}
-                editable={!paymentData.hasAllocations}
+                editable={false}
               />
             )}
           />

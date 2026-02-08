@@ -10,3 +10,25 @@ export function getContactCategoryLabel(category: string) {
       return "Lainnya";
   }
 }
+
+export function getPaymentMethodLabel(method: string) {
+  switch (method) {
+    case "cash":
+      return "Tunai";
+    case "bank_transfer":
+      return "Transfer Bank";
+    default:
+      return "Lainnya";
+  }
+}
+
+export function getPaymentTypeLabel(type: string) {
+  switch (type) {
+    case "income":
+      return "Pemasukan";
+    case "expense":
+      return "Pengeluaran";
+    default:
+      return "Tidak Diketahui";
+  }
+}

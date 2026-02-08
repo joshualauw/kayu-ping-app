@@ -47,19 +47,19 @@ export default function ContactEditScreen() {
   useEffect(() => {
     const fetchContact = async () => {
       try {
-        const result = await db
+        setLoading(true);
+        const res = await db
           .select()
           .from(contacts)
           .where(eq(contacts.id, Number(id)))
-          .limit(1);
+          .get();
 
-        if (result.length > 0) {
-          const contact = result[0];
+        if (res) {
           reset({
-            name: contact.name,
-            phone: contact.phoneNumber,
-            category: contact.category as FormValues["category"],
-            note: contact.notes || "",
+            name: res.name,
+            phone: res.phoneNumber,
+            category: res.category as FormValues["category"],
+            note: res.notes || "",
           });
         }
       } catch (error) {
@@ -74,10 +74,8 @@ export default function ContactEditScreen() {
       }
     };
 
-    if (id) {
-      fetchContact();
-    }
-  }, [id, reset]);
+    fetchContact();
+  }, [id]);
 
   const onSubmit = async (data: FormValues) => {
     try {

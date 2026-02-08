@@ -1,16 +1,22 @@
-import { Container } from "@/components/Container";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
-import { invoices, paymentAllocations, payments } from "@/db/schema";
+import { invoices, paymentAllocations } from "@/db/schema";
 import { formatCurrency, formatNumber, unformatNumber } from "@/lib/utils";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { and, eq } from "drizzle-orm";
-import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import Toast from "react-native-toast-message";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableWithoutFeedback,
+  View,
+} from "react-native";
 
-interface AllocationItem {
+export interface AllocationItem {
   id: string;
   invoiceId: number | null;
   amount: number;
@@ -23,135 +29,89 @@ interface InvoiceOption {
   entryDate: string;
 }
 
-interface PaymentData {
-  id: number;
+interface PaymentAllocationProps {
+  visible: boolean;
   amount: number;
   contactId: number | null;
-  type: string;
+  type: "income" | "expense";
+  initialAllocations?: AllocationItem[];
+  onApply: (allocations: AllocationItem[]) => void;
+  onClose: () => void;
 }
 
-export default function PaymentAllocationScreen() {
-  const { id } = useLocalSearchParams();
-  const [payment, setPayment] = useState<PaymentData | null>(null);
-  const [allocations, setAllocations] = useState<AllocationItem[]>([]);
+export default function PaymentAllocationModal({
+  visible,
+  amount,
+  contactId,
+  type,
+  initialAllocations,
+  onApply,
+  onClose,
+}: PaymentAllocationProps) {
+  const [allocations, setAllocations] = useState<AllocationItem[]>(initialAllocations ?? []);
   const [invoiceOptions, setInvoiceOptions] = useState<InvoiceOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      const fetchData = async () => {
-        if (!id) return;
-        try {
-          setLoading(true);
+  useEffect(() => {
+    if (!visible) return;
+    setAllocations(initialAllocations ?? []);
+    setOpenDropdownId(null);
+  }, [initialAllocations, visible]);
 
-          const paymentResult = await db
-            .select({
-              id: payments.id,
-              amount: payments.amount,
-              contactId: payments.contactId,
-              type: payments.type,
-            })
-            .from(payments)
-            .where(eq(payments.id, Number(id)))
-            .limit(1);
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!visible) return;
 
-          if (!paymentResult.length) {
-            setPayment(null);
-            return;
-          }
+      try {
+        setLoading(true);
 
-          const paymentData = paymentResult[0];
-          setPayment(paymentData);
+        if (!contactId) {
+          setInvoiceOptions([]);
+          return;
+        }
 
-          if (paymentData.contactId) {
-            const invoiceResult = await db
+        const invoiceResult = await db
+          .select({
+            id: invoices.id,
+            code: invoices.code,
+            amount: invoices.amount,
+            entryDate: invoices.entryDate,
+          })
+          .from(invoices)
+          .where(and(eq(invoices.contactId, contactId), eq(invoices.type, type === "income" ? "sales" : "purchase")))
+          .orderBy(invoices.id);
+
+        const invoicesWithRemaining = await Promise.all(
+          invoiceResult.map(async (inv) => {
+            const allocatedToInvoice = await db
               .select({
-                id: invoices.id,
-                code: invoices.code,
-                amount: invoices.amount,
-                entryDate: invoices.entryDate,
+                amount: paymentAllocations.amount,
               })
-              .from(invoices)
-              .where(
-                and(
-                  eq(invoices.contactId, paymentData.contactId),
-                  eq(invoices.type, paymentData.type === "income" ? "sales" : "purchase"),
-                ),
-              )
-              .orderBy(invoices.id);
+              .from(paymentAllocations)
+              .where(eq(paymentAllocations.invoiceId, inv.id));
 
-            const invoicesWithRemaining = await Promise.all(
-              invoiceResult.map(async (inv) => {
-                const allocatedToInvoice = await db
-                  .select({
-                    amount: paymentAllocations.amount,
-                  })
-                  .from(paymentAllocations)
-                  .where(eq(paymentAllocations.invoiceId, inv.id));
+            const totalAllocated = allocatedToInvoice.reduce((sum, a) => sum + a.amount, 0);
+            const remaining = inv.amount - totalAllocated;
 
-                const totalAllocated = allocatedToInvoice.reduce((sum, a) => sum + a.amount, 0);
-                const remaining = inv.amount - totalAllocated;
+            return {
+              ...inv,
+              amount: remaining > 0 ? remaining : 0,
+            };
+          }),
+        );
 
-                return {
-                  ...inv,
-                  amount: remaining > 0 ? remaining : 0,
-                };
-              }),
-            );
+        setInvoiceOptions(invoicesWithRemaining.filter((inv) => inv.amount > 0));
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-            setInvoiceOptions(invoicesWithRemaining.filter((inv) => inv.amount > 0));
-          }
-        } catch (error) {
-          console.error(error);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      fetchData();
-    }, [id]),
-  );
-
-  async function onSave() {
-    if (!payment) return;
-
-    try {
-      setLoading(true);
-
-      await db.transaction(async (tx) => {
-        await tx.delete(paymentAllocations).where(eq(paymentAllocations.paymentId, payment.id));
-
-        if (allocations.length > 0) {
-          await tx.insert(paymentAllocations).values(
-            allocations.map((a) => ({
-              paymentId: payment.id,
-              invoiceId: a.invoiceId!,
-              amount: a.amount,
-            })),
-          );
-        }
-      });
-
-      Toast.show({
-        type: "success",
-        text1: "Berhasil!",
-        text2: "Alokasi berhasil disimpan",
-      });
-
-      router.back();
-    } catch (error) {
-      console.error(error);
-      Toast.show({
-        type: "error",
-        text1: "Gagal!",
-        text2: "Terjadi kesalahan saat menyimpan alokasi",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }
+    fetchData();
+  }, [contactId, type, visible]);
 
   const addAllocation = () => {
     const newId = Date.now().toString();
@@ -159,10 +119,10 @@ export default function PaymentAllocationScreen() {
   };
 
   const autoAllocate = () => {
-    if (!payment || invoiceOptions.length === 0) return;
+    if (!amount || invoiceOptions.length === 0) return;
 
     const newAllocations: AllocationItem[] = [];
-    let remainingBalance = payment.amount;
+    let remainingBalance = amount;
 
     const sortedInvoices = [...invoiceOptions].sort((a, b) => {
       return new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime();
@@ -194,9 +154,9 @@ export default function PaymentAllocationScreen() {
   };
 
   const getRemainingBalance = () => {
-    if (!payment) return 0;
+    if (!amount) return 0;
     const allocated = allocations.reduce((sum, a) => sum + a.amount, 0);
-    return payment.amount - allocated;
+    return amount - allocated;
   };
 
   const renderAllocationItem = (item: AllocationItem, index: number) => {
@@ -272,7 +232,7 @@ export default function PaymentAllocationScreen() {
     );
   };
 
-  const remaining = getRemainingBalance();
+  const remaining = useMemo(() => getRemainingBalance(), [amount, allocations]);
   const isNegativeBalance = remaining < 0;
 
   useEffect(() => {
@@ -309,54 +269,105 @@ export default function PaymentAllocationScreen() {
 
   const disableSave = !!error;
 
-  if (loading || !payment) return <Text>Loading...</Text>;
+  if (!visible) return null;
 
   return (
-    <Container>
-      <Stack.Screen options={{ title: "Alokasi Pembayaran" }} />
+    <Modal visible={visible} transparent animationType="slide">
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Alokasi Pembayaran</Text>
+                <Pressable onPress={onClose} style={styles.modalCloseButton}>
+                  <MaterialCommunityIcons name="close" size={22} color={Colors.text} />
+                </Pressable>
+              </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.balanceContainer}>
-          <Text style={styles.balanceLabel}>Belum Dialokasikan</Text>
-          <Text style={[styles.balanceAmount, isNegativeBalance && styles.balanceNegative]}>
-            {formatCurrency(remaining)}
-          </Text>
+              <ScrollView contentContainerStyle={styles.scrollContent}>
+                {loading ? (
+                  <Text style={styles.loadingText}>Loading...</Text>
+                ) : (
+                  <>
+                    <View style={styles.balanceContainer}>
+                      <Text style={styles.balanceLabel}>Belum Dialokasikan</Text>
+                      <Text style={[styles.balanceAmount, isNegativeBalance && styles.balanceNegative]}>
+                        {formatCurrency(remaining)}
+                      </Text>
+                    </View>
+
+                    <View style={styles.listHeaderContainer}>
+                      <Text style={styles.listTitle}>Daftar Alokasi</Text>
+                      <View style={styles.headerButtons}>
+                        <Pressable style={styles.autoAllocateButton} onPress={autoAllocate}>
+                          <MaterialCommunityIcons name="auto-fix" size={18} color={Colors.primary} />
+                        </Pressable>
+                        <Pressable style={styles.addButton} onPress={addAllocation}>
+                          <MaterialCommunityIcons name="plus" size={20} color="white" />
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    <View style={styles.allocationsList}>
+                      {allocations.length === 0 ? (
+                        <Text style={styles.emptyText}>Belum ada alokasi</Text>
+                      ) : (
+                        allocations.map((item, index) => renderAllocationItem(item, index))
+                      )}
+                    </View>
+
+                    <Pressable
+                      style={[styles.saveButton, disableSave && styles.saveButtonDisabled]}
+                      disabled={disableSave}
+                      onPress={() => {
+                        onApply(allocations);
+                        onClose();
+                      }}
+                    >
+                      <Text style={styles.saveButtonText}>Simpan</Text>
+                    </Pressable>
+                    <Text style={styles.errorText}>{error}</Text>
+                  </>
+                )}
+              </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
         </View>
-
-        <View style={styles.listHeaderContainer}>
-          <Text style={styles.listTitle}>Daftar Alokasi</Text>
-          <View style={styles.headerButtons}>
-            <Pressable style={styles.autoAllocateButton} onPress={autoAllocate}>
-              <MaterialCommunityIcons name="auto-fix" size={18} color={Colors.primary} />
-            </Pressable>
-            <Pressable style={styles.addButton} onPress={addAllocation}>
-              <MaterialCommunityIcons name="plus" size={20} color="white" />
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.allocationsList}>
-          {allocations.length === 0 ? (
-            <Text style={styles.emptyText}>Belum ada alokasi</Text>
-          ) : (
-            allocations.map((item, index) => renderAllocationItem(item, index))
-          )}
-        </View>
-
-        <Pressable
-          style={[styles.saveButton, disableSave && styles.saveButtonDisabled]}
-          disabled={disableSave}
-          onPress={onSave}
-        >
-          <Text style={styles.saveButtonText}>Simpan</Text>
-        </Pressable>
-        <Text style={styles.errorText}>{error}</Text>
-      </ScrollView>
-    </Container>
+      </TouchableWithoutFeedback>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.lg,
+    maxHeight: "92%",
+    width: "100%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.md,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.text,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
   scrollContent: {
     paddingBottom: Spacing.lg,
   },
@@ -551,5 +562,10 @@ const styles = StyleSheet.create({
     color: Colors.danger,
     marginTop: Spacing.sm,
     textAlign: "center",
+  },
+  loadingText: {
+    textAlign: "center",
+    color: Colors.text,
+    paddingVertical: Spacing.lg,
   },
 });

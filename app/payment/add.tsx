@@ -1,11 +1,12 @@
 import { Container } from "@/components/Container";
+import PaymentAllocationModal, { AllocationItem } from "@/components/PaymentAllocation";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
-import { contacts, payments } from "@/db/schema";
+import { contacts, paymentAllocations, payments } from "@/db/schema";
 import { saveFileToDisk } from "@/lib/image-helper";
 import { formatDate, formatNumber, unformatNumber } from "@/lib/utils";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { like } from "drizzle-orm";
+import { desc, like } from "drizzle-orm";
 import * as ImagePicker from "expo-image-picker";
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -58,6 +59,7 @@ export default function AddPaymentScreen() {
     handleSubmit,
     setValue,
     setError,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(schema),
@@ -70,6 +72,14 @@ export default function AddPaymentScreen() {
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
   const [methodOpen, setMethodOpen] = useState(false);
+  const [allocationModalOpen, setAllocationModalOpen] = useState(false);
+  const [allocationDraft, setAllocationDraft] = useState<AllocationItem[]>([]);
+
+  const watchedContactId = watch("contactId");
+  const watchedAmount = watch("amount");
+  const watchedType = watch("type");
+  const amountValue = Number(watchedAmount) || 0;
+  const canOpenAllocation = !!watchedContactId && amountValue > 0;
 
   const isManualSelection = useRef(false);
 
@@ -108,6 +118,10 @@ export default function AddPaymentScreen() {
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm]);
 
+  useEffect(() => {
+    setAllocationDraft([]);
+  }, [watchedContactId, watchedType]);
+
   const selectContact = (contact: ContactDropdownItem) => {
     isManualSelection.current = true;
     setValue("contactId", contact.id);
@@ -128,14 +142,36 @@ export default function AddPaymentScreen() {
         data.mediaUri = savedUri;
       }
 
-      await db.insert(payments).values({
-        paymentDate: data.paymentDate.toISOString(),
-        contactId: data.contactId,
-        amount: data.amount,
-        type: data.type,
-        method: data.method,
-        notes: data.notes,
-        mediaUri: data.mediaUri,
+      await db.transaction(async (tx) => {
+        await tx.insert(payments).values({
+          paymentDate: data.paymentDate.toISOString(),
+          contactId: data.contactId,
+          amount: Number(data.amount) || 0,
+          type: data.type,
+          method: data.method,
+          notes: data.notes,
+          mediaUri: data.mediaUri,
+        });
+
+        if (allocationDraft.length > 0) {
+          const insertedPayment = await tx
+            .select({ id: payments.id })
+            .from(payments)
+            .orderBy(desc(payments.id))
+            .limit(1);
+
+          const paymentId = insertedPayment[0]?.id;
+
+          if (paymentId) {
+            await tx.insert(paymentAllocations).values(
+              allocationDraft.map((allocation) => ({
+                paymentId,
+                invoiceId: allocation.invoiceId!,
+                amount: allocation.amount,
+              })),
+            );
+          }
+        }
       });
 
       Toast.show({
@@ -338,6 +374,24 @@ export default function AddPaymentScreen() {
           />
           {errors.amount && <Text style={styles.error}>{errors.amount.message}</Text>}
 
+          <Pressable
+            style={[styles.allocationButton, !canOpenAllocation && styles.allocationButtonDisabled]}
+            onPress={() => {
+              if (!canOpenAllocation) {
+                Toast.show({
+                  type: "error",
+                  text1: "Lengkapi dulu",
+                  text2: "Pilih kontak dan masukkan jumlah pembayaran",
+                });
+                return;
+              }
+
+              setAllocationModalOpen(true);
+            }}
+          >
+            <Text style={styles.allocationButtonText}>Atur Alokasi</Text>
+          </Pressable>
+
           <Text style={styles.label}>Catatan (opsional)</Text>
           <Controller
             control={control}
@@ -391,6 +445,16 @@ export default function AddPaymentScreen() {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <PaymentAllocationModal
+        visible={allocationModalOpen}
+        amount={amountValue}
+        contactId={watchedContactId || null}
+        type={watchedType as "income" | "expense"}
+        initialAllocations={allocationDraft}
+        onApply={(items) => setAllocationDraft(items)}
+        onClose={() => setAllocationModalOpen(false)}
+      />
     </Container>
   );
 }
@@ -464,5 +528,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderStyle: "dashed",
+  },
+  allocationButton: {
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  allocationButtonDisabled: {
+    borderColor: Colors.border,
+    opacity: 0.6,
+  },
+  allocationButtonText: {
+    color: Colors.primary,
+    fontWeight: "600",
   },
 });

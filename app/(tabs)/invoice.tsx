@@ -26,8 +26,6 @@ interface InvoiceListItem {
   code: string;
   clientName: string;
   entryDate: string;
-  amount: number;
-  paidAmount: number;
   remainingAmount: number;
   status: "pending" | "paid";
   type: "sales" | "purchase";
@@ -292,7 +290,15 @@ export default function InvoiceScreen() {
   }, [filterQuery, filterVisible]);
 
   const renderItem = ({ item }: { item: InvoiceListItem }) => (
-    <Pressable style={styles.card} android_ripple={{ color: Colors.secondary }}>
+    <Pressable
+      onPress={() => router.push(`/invoice/${item.id}`)}
+      style={({ pressed }) => [styles.card, { opacity: pressed ? 0.9 : 1 }]}
+      android_ripple={{
+        color: "rgba(0, 0, 0, 0.1)",
+        borderless: false,
+        foreground: true,
+      }}
+    >
       <View style={styles.cardRow}>
         <View style={styles.clientInfo}>
           {item.code && <Text style={styles.code}>#{item.code}</Text>}
@@ -307,18 +313,14 @@ export default function InvoiceScreen() {
 
       <View style={styles.cardRowSmall}>
         <Text style={styles.meta}>{dayjs(item.entryDate).format("LL")}</Text>
-        <Text style={styles.amount}>{formatCurrency(item.amount)}</Text>
-      </View>
-
-      <View style={styles.paymentInfo}>
-        <View style={styles.paymentRow}>
-          <Text style={styles.paymentLabel}>Terbayar:</Text>
-          <Text style={styles.paymentValue}>{formatCurrency(item.paidAmount)}</Text>
-        </View>
-        <View style={styles.paymentRow}>
-          <Text style={styles.paymentLabel}>Sisa:</Text>
-          <Text style={[styles.paymentValue, styles.remainingText]}>{formatCurrency(item.remainingAmount)}</Text>
-        </View>
+        <Text
+          style={[
+            styles.remainingAmount,
+            item.remainingAmount > 0 ? styles.remainingAmountUnpaid : styles.remainingAmountPaid,
+          ]}
+        >
+          {item.remainingAmount > 0 ? `-${formatCurrency(item.remainingAmount)}` : formatCurrency(item.remainingAmount)}
+        </Text>
       </View>
     </Pressable>
   );
@@ -770,9 +772,15 @@ const styles = StyleSheet.create({
   meta: {
     color: Colors.text,
   },
-  amount: {
+  remainingAmount: {
     fontWeight: "700",
-    color: Colors.text,
+    fontSize: 16,
+  },
+  remainingAmountUnpaid: {
+    color: "#EF4444",
+  },
+  remainingAmountPaid: {
+    color: "#19a14b",
   },
   status: {
     paddingVertical: 4,
@@ -942,31 +950,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#888",
     fontWeight: "500",
-  },
-  paymentInfo: {
-    marginTop: Spacing.sm,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    gap: 4,
-  },
-  paymentRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  paymentLabel: {
-    fontSize: 13,
-    color: "#888",
-    fontWeight: "500",
-  },
-  paymentValue: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Colors.text,
-  },
-  remainingText: {
-    color: Colors.primary,
   },
   totalUnpaidContainer: {
     marginTop: Spacing.sm,

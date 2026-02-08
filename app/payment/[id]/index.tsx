@@ -2,9 +2,10 @@ import { Container } from "@/components/Container";
 import DeleteModal from "@/components/DeleteModal";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
-import { contacts, invoices, paymentAllocations, payments } from "@/db/schema";
+import { contacts, payments } from "@/db/schema";
 import { useDeleteConfirm } from "@/hooks/useDeleteConfirm";
 import { deleteFileFromDisk } from "@/lib/image-helper";
+import { getPaymentMethodLabel } from "@/lib/label-helper";
 import { formatCurrency } from "@/lib/utils";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
@@ -20,9 +21,9 @@ interface PaymentDetail {
   amount: number;
   paymentDate: string;
   notes: string | null;
+  method: "cash" | "bank_transfer" | "others";
   type: "income" | "expense";
   mediaUrl: string | null;
-  allocations: { label: string; amount: number }[];
 }
 
 export default function PaymentDetailScreen() {
@@ -67,9 +68,11 @@ export default function PaymentDetailScreen() {
     useCallback(() => {
       const fetchDetail = async () => {
         if (!id || loading) return;
+
         try {
           setLoading(true);
-          const result = await db
+
+          const res = await db
             .select({
               id: payments.id,
               clientName: contacts.name,
@@ -77,44 +80,15 @@ export default function PaymentDetailScreen() {
               paymentDate: payments.paymentDate,
               notes: payments.notes,
               type: payments.type,
+              method: payments.method,
               mediaUrl: payments.mediaUri,
             })
             .from(payments)
             .leftJoin(contacts, eq(payments.contactId, contacts.id))
             .where(eq(payments.id, Number(id)))
-            .limit(1);
+            .get();
 
-          if (result.length === 0) {
-            setPayment(null);
-            return;
-          }
-
-          const paymentRow = result[0];
-
-          const allocationRows = await db
-            .select({
-              invoiceCode: invoices.code,
-              amount: paymentAllocations.amount,
-            })
-            .from(paymentAllocations)
-            .leftJoin(invoices, eq(paymentAllocations.invoiceId, invoices.id))
-            .where(eq(paymentAllocations.paymentId, Number(id)));
-
-          const allocations = allocationRows.map((row) => ({
-            label: row.invoiceCode ? row.invoiceCode : "Tanpa Nota",
-            amount: row.amount,
-          }));
-
-          const allocatedSum = allocations.reduce((sum, item) => sum + item.amount, 0);
-          const remaining = Math.max(0, paymentRow.amount - allocatedSum);
-          const finalAllocations =
-            remaining > 0 ? [...allocations, { label: "Belum teralokasi", amount: remaining }] : allocations;
-
-          setPayment({
-            ...paymentRow,
-            clientName: paymentRow.clientName || "Unnamed",
-            allocations: finalAllocations,
-          } as PaymentDetail);
+          setPayment(res as PaymentDetail);
         } catch (error) {
           console.error(error);
         } finally {
@@ -156,6 +130,7 @@ export default function PaymentDetailScreen() {
             value={payment.paymentDate ? dayjs(payment.paymentDate).format("DD MMM YYYY") : "-"}
             icon="calendar-outline"
           />
+          <InfoItem label="Metode Pembayaran" value={getPaymentMethodLabel(payment.method)} icon="card-outline" />
           {payment.notes && <InfoItem label="Catatan" value={payment.notes} icon="document-text-outline" />}
           {payment.mediaUrl && (
             <Pressable style={styles.photoItem} onPress={() => setPhotoVisible(true)}>
@@ -165,30 +140,6 @@ export default function PaymentDetailScreen() {
               </View>
               <Ionicons name="open-outline" size={18} color={Colors.text} />
             </Pressable>
-          )}
-        </View>
-
-        <View style={styles.allocationsBox}>
-          <View style={styles.allocationHeader}>
-            <Text style={styles.sectionTitle}>Alokasi Pembayaran</Text>
-            <Pressable
-              style={styles.setAllocationButton}
-              onPress={() => router.push(`/payment/${payment.id}/allocation`)}
-            >
-              <Text style={styles.setAllocationButtonText}>Atur Alokasi</Text>
-            </Pressable>
-          </View>
-          {payment.allocations.length === 0 ? (
-            <Text style={styles.emptyAllocations}>Belum ada alokasi pembayaran</Text>
-          ) : (
-            payment.allocations.map((allocation, index) => (
-              <View key={`${allocation.label}-${index}`} style={styles.paymentRow}>
-                <Text style={styles.paymentLabel}>{allocation.label}:</Text>
-                <Text style={[styles.paymentValue, allocation.label === "Belum teralokasi" && styles.remainingText]}>
-                  {formatCurrency(allocation.amount)}
-                </Text>
-              </View>
-            ))
           )}
         </View>
       </ScrollView>
@@ -262,40 +213,6 @@ const styles = StyleSheet.create({
   },
   infoLabel: { fontSize: 12, color: "#666", marginBottom: Spacing.xs },
   infoValue: { fontSize: 16, color: Colors.text },
-  allocationsBox: {
-    marginTop: Spacing.md,
-    backgroundColor: Colors.background,
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.lg,
-  },
-  allocationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.sm,
-  },
-  sectionTitle: { fontSize: 14, fontWeight: "700", color: Colors.text },
-  setAllocationButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-  },
-  setAllocationButtonText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "white",
-  },
-  emptyAllocations: { fontSize: 14, color: "#888" },
-  paymentRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 6,
-  },
-  paymentLabel: { fontSize: 14, color: "#888", fontWeight: "500" },
-  paymentValue: { fontSize: 14, fontWeight: "600", color: Colors.text },
-  remainingText: { color: Colors.primary },
   buttonRow: {
     flexDirection: "row",
     gap: Spacing.sm,

@@ -1,12 +1,12 @@
 import { Container } from "@/components/Container";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
-import { contacts, invoices, paymentAllocations, payments } from "@/db/schema";
+import { contacts, payments } from "@/db/schema";
 import "@/lib/dayjs-config";
 import { formatCurrency } from "@/lib/utils";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
-import { and, desc, eq, gte, inArray, like, lte } from "drizzle-orm";
+import { and, desc, eq, gte, like, lte } from "drizzle-orm";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -27,10 +27,6 @@ interface PaymentListItem {
   paymentDate: string;
   amount: number;
   type: "income" | "expense";
-  allocations: {
-    label: string;
-    amount: number;
-  }[];
 }
 
 interface ContactFilterItem {
@@ -156,46 +152,10 @@ export default function PaymentScreen() {
         .limit(limit)
         .offset(offset);
 
-      const paymentIds = res.map((row) => row.id);
-      const allocationMap = new Map<number, { label: string; amount: number }[]>();
-
-      if (paymentIds.length > 0) {
-        const allocationRows = await db
-          .select({
-            paymentId: paymentAllocations.paymentId,
-            invoiceCode: invoices.code,
-            amount: paymentAllocations.amount,
-          })
-          .from(paymentAllocations)
-          .leftJoin(invoices, eq(paymentAllocations.invoiceId, invoices.id))
-          .where(inArray(paymentAllocations.paymentId, paymentIds));
-
-        allocationRows.forEach((row) => {
-          if (!row.paymentId) return;
-          const label = row.invoiceCode ? row.invoiceCode : "Tanpa Nota";
-          const existing = allocationMap.get(row.paymentId) || [];
-          existing.push({ label, amount: row.amount });
-          allocationMap.set(row.paymentId, existing);
-        });
-      }
-
-      const dataWithAllocations: PaymentListItem[] = res.map((row) => {
-        const allocations = allocationMap.get(row.id) || [];
-        const allocatedSum = allocations.reduce((sum, item) => sum + item.amount, 0);
-        const remaining = Math.max(0, row.amount - allocatedSum);
-        const finalAllocations =
-          remaining > 0 ? [...allocations, { label: "Belum teralokasi", amount: remaining }] : allocations;
-
-        return {
-          ...row,
-          allocations: finalAllocations,
-        } as PaymentListItem;
-      });
-
       if (append) {
-        setData((prev) => [...prev, ...dataWithAllocations]);
+        setData((prev) => [...prev, ...(res as PaymentListItem[])]);
       } else {
-        setData(dataWithAllocations);
+        setData(res as PaymentListItem[]);
       }
 
       setHasMore(res.length === limit);
@@ -311,19 +271,6 @@ export default function PaymentScreen() {
         <Text style={styles.meta}>{dayjs(item.paymentDate).format("DD MMM YYYY")}</Text>
         <Text style={styles.amount}>{formatCurrency(item.amount)}</Text>
       </View>
-
-      {item.allocations.length > 0 && (
-        <View style={styles.paymentInfo}>
-          {item.allocations.map((allocation, index) => (
-            <View key={`${allocation.label}-${index}`} style={styles.paymentRow}>
-              <Text style={styles.paymentLabel}>{allocation.label}:</Text>
-              <Text style={[styles.paymentValue, allocation.label === "Belum teralokasi" && styles.remainingText]}>
-                {formatCurrency(allocation.amount)}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
     </Pressable>
   );
 
@@ -713,31 +660,6 @@ const styles = StyleSheet.create({
   amount: {
     fontWeight: "700",
     color: Colors.text,
-  },
-  paymentInfo: {
-    marginTop: Spacing.sm,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    gap: 4,
-  },
-  paymentRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  paymentLabel: {
-    fontSize: 13,
-    color: "#888",
-    fontWeight: "500",
-  },
-  paymentValue: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: Colors.text,
-  },
-  remainingText: {
-    color: Colors.primary,
   },
   emptyContainer: {
     alignItems: "center",
