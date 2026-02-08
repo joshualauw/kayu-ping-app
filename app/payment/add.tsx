@@ -6,6 +6,7 @@ import { contacts, paymentAllocations, payments } from "@/db/schema";
 import { saveFileToDisk } from "@/lib/image-helper";
 import { formatDate, formatNumber, unformatNumber } from "@/lib/utils";
 import { yupResolver } from "@hookform/resolvers/yup";
+import dayjs from "dayjs";
 import { desc, like } from "drizzle-orm";
 import * as ImagePicker from "expo-image-picker";
 import { Stack, useRouter } from "expo-router";
@@ -144,7 +145,7 @@ export default function AddPaymentScreen() {
 
       await db.transaction(async (tx) => {
         await tx.insert(payments).values({
-          paymentDate: data.paymentDate.toISOString(),
+          paymentDate: dayjs(data.paymentDate).format("YYYY-MM-DD"),
           contactId: data.contactId,
           amount: Number(data.amount) || 0,
           type: data.type,

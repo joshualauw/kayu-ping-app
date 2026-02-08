@@ -6,7 +6,8 @@ import { generateInvoiceCode } from "@/lib/codegen";
 import { saveFileToDisk } from "@/lib/image-helper";
 import { formatDate, formatNumber, unformatNumber } from "@/lib/utils";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { eq, like } from "drizzle-orm";
+import dayjs from "dayjs";
+import { like } from "drizzle-orm";
 import * as ImagePicker from "expo-image-picker";
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -124,11 +125,11 @@ export default function AddInvoiceScreen() {
         data.mediaUri = savedUri;
       }
 
-      const contact = await db.select().from(contacts).where(eq(contacts.id, data.contactId)).get();
+      const code = await generateInvoiceCode(db, data.type, data.contactId, dayjs(data.entryDate).format("YYYY-MM-DD"));
 
       await db.insert(invoices).values({
-        code: generateInvoiceCode(data.type, contact?.name ?? ""),
-        entryDate: data.entryDate.toISOString(),
+        code,
+        entryDate: dayjs(data.entryDate).format("YYYY-MM-DD"),
         contactId: data.contactId,
         amount: data.amount,
         type: data.type,

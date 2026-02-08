@@ -5,6 +5,7 @@ import { contacts, payments } from "@/db/schema";
 import { replaceFileOnDisk } from "@/lib/image-helper";
 import { formatDate, formatNumber, unformatNumber } from "@/lib/utils";
 import { yupResolver } from "@hookform/resolvers/yup";
+import dayjs from "dayjs";
 import { eq } from "drizzle-orm";
 import * as ImagePicker from "expo-image-picker";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -134,7 +135,7 @@ export default function PaymentEditScreen() {
       await db
         .update(payments)
         .set({
-          paymentDate: data.paymentDate.toISOString(),
+          paymentDate: dayjs(data.paymentDate).format("YYYY-MM-DD"),
           contactId: data.contactId,
           amount: data.amount,
           type: data.type,

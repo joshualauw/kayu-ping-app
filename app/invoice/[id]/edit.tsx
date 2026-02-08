@@ -5,6 +5,7 @@ import { contacts, invoices } from "@/db/schema";
 import { replaceFileOnDisk } from "@/lib/image-helper";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { yupResolver } from "@hookform/resolvers/yup";
+import dayjs from "dayjs";
 import { eq } from "drizzle-orm";
 import * as ImagePicker from "expo-image-picker";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -130,7 +131,7 @@ export default function InvoiceEditScreen() {
       await db
         .update(invoices)
         .set({
-          entryDate: data.entryDate.toISOString(),
+          entryDate: dayjs(data.entryDate).format("YYYY-MM-DD"),
           notes: data.notes,
           mediaUri: finalMediaUri,
         })
