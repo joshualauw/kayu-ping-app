@@ -1,26 +1,33 @@
-import { File, Paths } from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
-export const saveFileToDisk = (tempUri: string): string => {
-  const source = new File(tempUri);
-  const fileName = source.name || `media_${Date.now()}.jpg`;
-  const destination = new File(Paths.document, fileName);
+const MEDIA_FOLDER = `${FileSystem.documentDirectory}media/`;
+
+export const saveFileToDisk = async (tempUri: string): Promise<string> => {
+  const fileName = tempUri.split("/").pop() || `media_${Date.now()}.jpg`;
+
+  await FileSystem.makeDirectoryAsync(MEDIA_FOLDER, { intermediates: true });
+
+  const destination = `${MEDIA_FOLDER}${fileName}`;
 
   try {
-    source.copy(destination);
+    await FileSystem.copyAsync({
+      from: tempUri,
+      to: destination,
+    });
 
-    return destination.uri;
+    return destination;
   } catch (error) {
     console.error("Failed to persist file:", error);
     throw error;
   }
 };
 
-export const replaceFileOnDisk = (oldUri: string | null, newTempUri: string): string => {
+export const replaceFileOnDisk = async (oldUri: string | null, newTempUri: string): Promise<string> => {
   try {
     if (oldUri) {
-      const oldFile = new File(oldUri);
-      if (oldFile.exists) {
-        oldFile.delete();
+      const info = await FileSystem.getInfoAsync(oldUri);
+      if (info.exists) {
+        await FileSystem.deleteAsync(oldUri);
       }
     }
 
@@ -31,10 +38,12 @@ export const replaceFileOnDisk = (oldUri: string | null, newTempUri: string): st
   }
 };
 
-export const deleteFileFromDisk = (uri: string): void => {
+export const deleteFileFromDisk = async (uri: string): Promise<void> => {
   try {
-    const file = new File(uri);
-    file.delete();
+    const info = await FileSystem.getInfoAsync(uri);
+    if (info.exists) {
+      await FileSystem.deleteAsync(uri);
+    }
   } catch (error) {
     console.error("Failed to delete file:", error);
   }

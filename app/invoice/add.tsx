@@ -122,7 +122,7 @@ export default function AddInvoiceScreen() {
       }
 
       if (data.mediaUri) {
-        const savedUri = saveFileToDisk(data.mediaUri);
+        const savedUri = await saveFileToDisk(data.mediaUri);
         data.mediaUri = savedUri;
       }
 

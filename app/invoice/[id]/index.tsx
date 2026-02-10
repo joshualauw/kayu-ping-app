@@ -43,7 +43,7 @@ export default function InvoiceDetailPage() {
   const handleDelete = async (invoiceId: number) => {
     try {
       if (invoice?.mediaUrl) {
-        deleteFileFromDisk(invoice.mediaUrl);
+        await deleteFileFromDisk(invoice.mediaUrl);
       }
 
       await db.delete(invoices).where(eq(invoices.id, invoiceId));

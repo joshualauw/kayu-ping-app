@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "kayu-ping-app",
+    "name": "Kayu Ping",
     "slug": "kayu-ping-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,7 +14,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": ["android.permission.RECORD_AUDIO"]
     },
     "plugins": [
       "expo-router",
@@ -25,6 +26,13 @@
           "photosPermission": "The app accesses your photos to let you upload images."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ab2b4dc5-0b6a-4a76-aef0-826928495148"
+      }
+    },
+    "owner": "joshualauw"
   }
 }

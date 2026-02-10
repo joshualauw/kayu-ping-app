@@ -2,7 +2,7 @@ import { Container } from "@/components/Container";
 import DeleteModal from "@/components/DeleteModal";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
-import { contacts, payments } from "@/db/schema";
+import { contacts, invoices, paymentAllocations, payments } from "@/db/schema";
 import { useDeleteConfirm } from "@/hooks/useDeleteConfirm";
 import { deleteFileFromDisk } from "@/lib/image-helper";
 import { getPaymentMethodLabel } from "@/lib/label-helper";
@@ -24,6 +24,12 @@ interface PaymentDetail {
   method: "cash" | "bank_transfer" | "others";
   type: "income" | "expense";
   mediaUrl: string | null;
+  allocations: {
+    id: number;
+    invoiceCode: string;
+    entryDate: string;
+    amount: number;
+  }[];
 }
 
 export default function PaymentDetailScreen() {
@@ -36,7 +42,7 @@ export default function PaymentDetailScreen() {
   const handleDelete = async (paymentId: number) => {
     try {
       if (payment?.mediaUrl) {
-        deleteFileFromDisk(payment.mediaUrl);
+        await deleteFileFromDisk(payment.mediaUrl);
       }
 
       await db.delete(payments).where(eq(payments.id, paymentId));
@@ -88,7 +94,36 @@ export default function PaymentDetailScreen() {
             .where(eq(payments.id, Number(id)))
             .get();
 
-          setPayment(res as PaymentDetail);
+          if (!res) {
+            setPayment(null);
+            return;
+          }
+
+          const allocationRows = await db
+            .select({
+              id: invoices.id,
+              invoiceCode: invoices.code,
+              entryDate: invoices.entryDate,
+              amount: paymentAllocations.amount,
+              originalAmount: invoices.amount,
+            })
+            .from(paymentAllocations)
+            .leftJoin(invoices, eq(paymentAllocations.invoiceId, invoices.id))
+            .where(eq(paymentAllocations.paymentId, Number(id)));
+
+          const allocations = allocationRows
+            .filter((row) => row.id !== null)
+            .map((row) => ({
+              id: row.id!,
+              invoiceCode: row.invoiceCode || "",
+              entryDate: row.entryDate || "",
+              amount: row.amount,
+            }));
+
+          setPayment({
+            ...res,
+            allocations,
+          } as PaymentDetail);
         } catch (error) {
           console.error(error);
         } finally {
@@ -142,6 +177,32 @@ export default function PaymentDetailScreen() {
             </Pressable>
           )}
         </View>
+
+        {payment.allocations.length > 0 && (
+          <View style={styles.allocationBox}>
+            <Text style={styles.sectionTitle}>Nota Terkait</Text>
+            <View style={styles.allocationsSection}>
+              {payment.allocations.map((allocation, index) => (
+                <Pressable
+                  key={`${allocation.id}-${index}`}
+                  style={({ pressed }) => [
+                    styles.allocationItem,
+                    { backgroundColor: pressed ? Colors.secondary : "transparent" },
+                  ]}
+                  onPress={() => router.push(`/invoice/${allocation.id}`)}
+                >
+                  <View style={styles.allocationLeft}>
+                    <Text style={styles.allocationCode}>{allocation.invoiceCode}</Text>
+                    <Text style={styles.allocationDate}>{dayjs(allocation.entryDate).format("DD MMM YYYY")}</Text>
+                  </View>
+                  <View style={styles.allocationRight}>
+                    <Text style={styles.allocationAmount}>{formatCurrency(allocation.amount)}</Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       <DeleteModal
@@ -213,6 +274,49 @@ const styles = StyleSheet.create({
   },
   infoLabel: { fontSize: 12, color: "#666", marginBottom: Spacing.xs },
   infoValue: { fontSize: 16, color: Colors.text },
+  allocationBox: {
+    marginTop: Spacing.md,
+    backgroundColor: Colors.background,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: Colors.text, marginBottom: Spacing.sm },
+  allocationsSection: {
+    marginTop: Spacing.xs,
+  },
+  allocationItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  allocationLeft: {
+    flexDirection: "column",
+    flex: 1,
+  },
+  allocationCode: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#888",
+    marginBottom: 2,
+  },
+  allocationDate: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: Colors.text,
+  },
+  allocationRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  allocationAmount: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.text,
+  },
   buttonRow: {
     flexDirection: "row",
     gap: Spacing.sm,

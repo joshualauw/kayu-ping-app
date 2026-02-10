@@ -140,7 +140,7 @@ export default function AddPaymentScreen() {
       }
 
       if (data.mediaUri) {
-        const savedUri = saveFileToDisk(data.mediaUri);
+        const savedUri = await saveFileToDisk(data.mediaUri);
         data.mediaUri = savedUri;
       }
 

@@ -124,7 +124,7 @@ export default function InvoiceEditScreen() {
 
       if (data.mediaUri && data.mediaUri !== originalMediaUri) {
         if (data.mediaUri.startsWith("file://")) {
-          finalMediaUri = replaceFileOnDisk(originalMediaUri, data.mediaUri);
+          finalMediaUri = await replaceFileOnDisk(originalMediaUri, data.mediaUri);
         }
       }
 
