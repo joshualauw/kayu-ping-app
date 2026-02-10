@@ -3,7 +3,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { Stack, useRouter } from "expo-router";
 import React from "react";
-import { Dimensions, Pressable, StatusBar, StyleSheet, Text, View } from "react-native";
+import { Dimensions, Image, Pressable, StatusBar, StyleSheet, Text, View } from "react-native";
 
 const { width } = Dimensions.get("window");
 const COLUMN_WIDTH = (width - 48) / 2;
@@ -25,9 +25,7 @@ export default function HomeScreen() {
 
       <View style={styles.headerBackground}>
         <View style={styles.headerSection}>
-          <View style={styles.logoCircle}>
-            <MaterialCommunityIcons name="tree" size={44} color="white" />
-          </View>
+          <Image source={require("../assets/images/icon.png")} style={{ width: 60, height: 60 }} />
           <Text style={styles.title}>Kayu Ping</Text>
           <Text style={styles.subtitle}>Pencatatan Bisnis Kayu</Text>
         </View>
@@ -79,17 +77,6 @@ const styles = StyleSheet.create({
   },
   headerSection: {
     alignItems: "center",
-  },
-  logoCircle: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
   },
   title: {
     fontSize: 32,

@@ -1,11 +1,11 @@
 export const Colors = {
-  primary: "#4A6D1F",
+  primary: "#718974",
   text: "#1C1C1E",
   border: "#c1c1c1",
   secondary: "#F4F7F1",
-  accent: "#27AE60",
+  accent: "#468962",
   background: "#FFFFFF",
-  danger: "#bc4521",
+  danger: "#c24a26",
   warning: "#fdd354",
 };
 

@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Kayu Ping",
+    "name": "KayuPing",
     "slug": "kayu-ping-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "kayupingapp",
@@ -10,12 +10,17 @@
     "newArchEnabled": true,
     "assetBundlePatterns": ["**/*"],
     "android": {
-      "package": "com.joshua.kayupingapp",
+      "package": "com.joshualauw.kayuping",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": ["android.permission.RECORD_AUDIO"]
+    },
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
     },
     "plugins": [
       "expo-router",
