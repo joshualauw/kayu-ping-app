@@ -14,7 +14,7 @@ export default function HomeScreen() {
   const menuItems = [
     { title: "Kontak", icon: "account-group", route: "/contact", color: "#E3F2FD", iconColor: "#1976D2" },
     { title: "Transaksi", icon: "cash-register", route: "/invoice", color: "#E8F5E9", iconColor: "#388E3C" },
-    { title: "Laporan", icon: "file-chart", route: null, color: "#FFF3E0", iconColor: "#F57C00" },
+    { title: "Laporan", icon: "file-chart", route: "/reports/debt", color: "#FFF3E0", iconColor: "#F57C00" },
     { title: "Pengaturan", icon: "cog", route: "/settings", color: "#F3E5F5", iconColor: "#7B1FA2" },
   ];
 
@@ -40,7 +40,7 @@ export default function HomeScreen() {
                 styles.gridButton,
                 { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
               ]}
-              onPress={() => (item.route ? router.push(item.route as any) : {})}
+              onPress={() => router.push(item.route)}
             >
               <View style={[styles.iconContainer, { backgroundColor: item.color }]}>
                 <MaterialCommunityIcons name={item.icon as any} size={32} color={item.iconColor} />
