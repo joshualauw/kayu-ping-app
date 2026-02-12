@@ -2,7 +2,7 @@
   "expo": {
     "name": "KayuPing",
     "slug": "kayu-ping-app",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "kayupingapp",
@@ -19,8 +19,8 @@
     },
     "splash": {
       "image": "./assets/images/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "resizeMode": "cover",
+      "backgroundColor": "#718974"
     },
     "plugins": [
       "expo-router",

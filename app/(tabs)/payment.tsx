@@ -49,13 +49,14 @@ export default function PaymentScreen() {
   const [selectedContactName, setSelectedContactName] = useState<string | null>(null);
   const [dateFilterVisible, setDateFilterVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(dayjs().format("MMM YYYY"));
-  const [dateFilterType, setDateFilterType] = useState<"day" | "week" | "month" | "year">("month");
+  const [dateFilterType, setDateFilterType] = useState<"all" | "day" | "week" | "month" | "year">("month");
   const [dateAnchor, setDateAnchor] = useState(dayjs());
   const [totalAmount, setTotalAmount] = useState<number>(0);
 
   const isManualSelection = useRef(false);
 
-  const getDateLabel = (type: "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
+  const getDateLabel = (type: "all" | "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
+    if (type === "all") return "Semua";
     if (type === "day") return anchor.format("DD MMM YYYY");
     if (type === "week") {
       const start = anchor.startOf("week");
@@ -66,7 +67,13 @@ export default function PaymentScreen() {
     return anchor.format("YYYY");
   };
 
-  const getDateRange = (type: "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
+  const getDateRange = (type: "all" | "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
+    if (type === "all") {
+      return {
+        startDate: undefined,
+        endDate: undefined,
+      };
+    }
     return {
       startDate: anchor.startOf(type).toISOString(),
       endDate: anchor.endOf(type).toISOString(),
@@ -220,7 +227,7 @@ export default function PaymentScreen() {
     setPage(1);
   };
 
-  const handleSelectDateFilter = (type: "day" | "week" | "month" | "year") => {
+  const handleSelectDateFilter = (type: "all" | "day" | "week" | "month" | "year") => {
     const anchor = dayjs();
     setDateFilterType(type);
     setDateAnchor(anchor);
@@ -230,6 +237,8 @@ export default function PaymentScreen() {
   };
 
   const handleShiftDate = (direction: -1 | 1) => {
+    if (dateFilterType === "all") return;
+
     let nextAnchor = dateAnchor;
     if (dateFilterType === "day") nextAnchor = dateAnchor.add(direction, "day");
     if (dateFilterType === "week") nextAnchor = dateAnchor.add(direction, "week");
@@ -473,12 +482,16 @@ export function DateFilter({
         <Text style={styles.dateFilterLabel}>{selectedDate}</Text>
       </Pressable>
       <View style={styles.dateNavButtons}>
-        <Pressable style={styles.dateNavButton} onPress={onChevronLeftPress}>
-          <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.text} />
-        </Pressable>
-        <Pressable style={styles.dateNavButton} onPress={onChevronRightPress}>
-          <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.text} />
-        </Pressable>
+        {dateFilterType !== "all" && (
+          <>
+            <Pressable style={styles.dateNavButton} onPress={onChevronLeftPress}>
+              <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.text} />
+            </Pressable>
+            <Pressable style={styles.dateNavButton} onPress={onChevronRightPress}>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.text} />
+            </Pressable>
+          </>
+        )}
       </View>
     </View>
   );
@@ -494,6 +507,12 @@ export function DateFilterModal({ visible, onClose, onSelectDateFilter, dateFilt
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>Filter Tanggal</Text>
               <View style={styles.datePresetList}>
+                <Pressable style={styles.datePresetItem} onPress={() => onSelectDateFilter("all")}>
+                  <View>
+                    <Text style={styles.datePresetTop}>Semua</Text>
+                    <Text style={styles.datePresetBottom}>Tanpa filter tanggal</Text>
+                  </View>
+                </Pressable>
                 <Pressable style={styles.datePresetItem} onPress={() => onSelectDateFilter("day")}>
                   <View>
                     <Text style={styles.datePresetTop}>Hari ini</Text>
@@ -696,7 +715,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.lg,
+    paddingBottom: 32,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
   },

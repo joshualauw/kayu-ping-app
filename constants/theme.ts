@@ -3,9 +3,9 @@ export const Colors = {
   text: "#1C1C1E",
   border: "#c1c1c1",
   secondary: "#F4F7F1",
-  accent: "#468962",
   background: "#FFFFFF",
   danger: "#c24a26",
+  success: "#468962",
   warning: "#fdd354",
 };
 

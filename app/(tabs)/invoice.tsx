@@ -51,13 +51,14 @@ export default function InvoiceScreen() {
   const [selectedContactName, setSelectedContactName] = useState<string | null>(null);
   const [dateFilterVisible, setDateFilterVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(dayjs().format("MMM YYYY"));
-  const [dateFilterType, setDateFilterType] = useState<"day" | "week" | "month" | "year">("month");
+  const [dateFilterType, setDateFilterType] = useState<"all" | "day" | "week" | "month" | "year">("month");
   const [dateAnchor, setDateAnchor] = useState(dayjs());
   const [statusFilterVisible, setStatusFilterVisible] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<"all" | "paid" | "pending">("all");
   const [totalUnpaid, setTotalUnpaid] = useState<number>(0);
 
-  const getDateLabel = (type: "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
+  const getDateLabel = (type: "all" | "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
+    if (type === "all") return "Semua";
     if (type === "day") return anchor.format("DD MMM YYYY");
     if (type === "week") {
       const start = anchor.startOf("week");
@@ -68,7 +69,13 @@ export default function InvoiceScreen() {
     return anchor.format("YYYY");
   };
 
-  const getDateRange = (type: "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
+  const getDateRange = (type: "all" | "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
+    if (type === "all") {
+      return {
+        startDate: undefined,
+        endDate: undefined,
+      };
+    }
     return {
       startDate: anchor.startOf(type).toISOString(),
       endDate: anchor.endOf(type).toISOString(),
@@ -258,7 +265,7 @@ export default function InvoiceScreen() {
     setPage(1);
   };
 
-  const handleSelectDateFilter = (type: "day" | "week" | "month" | "year") => {
+  const handleSelectDateFilter = (type: "all" | "day" | "week" | "month" | "year") => {
     const anchor = dayjs();
     setDateFilterType(type);
     setDateAnchor(anchor);
@@ -268,6 +275,8 @@ export default function InvoiceScreen() {
   };
 
   const handleShiftDate = (direction: -1 | 1) => {
+    if (dateFilterType === "all") return;
+
     let nextAnchor = dateAnchor;
     if (dateFilterType === "day") nextAnchor = dateAnchor.add(direction, "day");
     if (dateFilterType === "week") nextAnchor = dateAnchor.add(direction, "week");
@@ -304,7 +313,7 @@ export default function InvoiceScreen() {
           {item.code && <Text style={styles.code}>#{item.code}</Text>}
           <Text style={styles.client}>{item.clientName}</Text>
         </View>
-        <View style={[styles.status, { backgroundColor: item.status === "paid" ? Colors.accent : Colors.secondary }]}>
+        <View style={[styles.status, { backgroundColor: item.status === "paid" ? Colors.success : Colors.secondary }]}>
           <Text style={[styles.statusText, { color: item.status === "paid" ? "white" : Colors.text }]}>
             {item.status === "paid" ? "Lunas" : "Belum Lunas"}
           </Text>
@@ -477,12 +486,16 @@ export function DateFilter({
         <Pressable style={styles.statusFilterButton} onPress={onStatusFilterPress}>
           <MaterialCommunityIcons name="filter-variant" size={18} color={Colors.text} />
         </Pressable>
-        <Pressable style={styles.dateNavButton} onPress={onChevronLeftPress}>
-          <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.text} />
-        </Pressable>
-        <Pressable style={styles.dateNavButton} onPress={onChevronRightPress}>
-          <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.text} />
-        </Pressable>
+        {dateFilterType !== "all" && (
+          <>
+            <Pressable style={styles.dateNavButton} onPress={onChevronLeftPress}>
+              <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.text} />
+            </Pressable>
+            <Pressable style={styles.dateNavButton} onPress={onChevronRightPress}>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.text} />
+            </Pressable>
+          </>
+        )}
       </View>
     </View>
   );
@@ -555,6 +568,12 @@ export function DateFilterModal({ visible, onClose, onSelectDateFilter, dateFilt
               <View style={styles.sheetHandle} />
               <Text style={styles.sheetTitle}>Filter Tanggal</Text>
               <View style={styles.datePresetList}>
+                <Pressable style={styles.datePresetItem} onPress={() => onSelectDateFilter("all")}>
+                  <View>
+                    <Text style={styles.datePresetTop}>Semua</Text>
+                    <Text style={styles.datePresetBottom}>Tanpa filter tanggal</Text>
+                  </View>
+                </Pressable>
                 <Pressable style={styles.datePresetItem} onPress={() => onSelectDateFilter("day")}>
                   <View>
                     <Text style={styles.datePresetTop}>Hari ini</Text>
@@ -785,10 +804,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   remainingAmountUnpaid: {
-    color: "#EF4444",
+    color: Colors.danger,
   },
   remainingAmountPaid: {
-    color: "#19a14b",
+    color: Colors.success,
   },
   status: {
     paddingVertical: 4,
@@ -867,7 +886,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.lg,
+    paddingBottom: 32,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
   },

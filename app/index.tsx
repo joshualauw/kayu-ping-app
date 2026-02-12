@@ -51,7 +51,7 @@ export default function HomeScreen() {
           ))}
         </View>
         <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>Ver: v{Constants.expoConfig?.version || "N/A"}</Text>
+          <Text style={styles.versionText}>v{Constants.expoConfig?.version || "N/A"}</Text>
         </View>
       </View>
     </View>

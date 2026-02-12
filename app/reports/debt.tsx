@@ -5,7 +5,7 @@ import { contacts, invoices, payments } from "@/db/schema";
 import { formatCurrency } from "@/lib/utils";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
-import { and, desc, eq, like } from "drizzle-orm";
+import { and, desc, eq, gte, like, lte } from "drizzle-orm";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -45,8 +45,21 @@ export default function DebtReportScreen() {
   const [debtData, setDebtData] = useState<DebtItem[]>([]);
   const [debtLoading, setDebtLoading] = useState(false);
   const [remainingAmount, setRemainingAmount] = useState(0);
+  const [dateAnchor, setDateAnchor] = useState(dayjs());
+  const [selectedDate, setSelectedDate] = useState<string>(dayjs().format("YYYY"));
 
-  const fetchDebtData = async (contactId: number | null) => {
+  const getDateLabel = (anchor: dayjs.Dayjs) => {
+    return anchor.format("YYYY");
+  };
+
+  const getDateRange = (anchor: dayjs.Dayjs) => {
+    return {
+      startDate: anchor.startOf("year").toISOString(),
+      endDate: anchor.endOf("year").toISOString(),
+    };
+  };
+
+  const fetchDebtData = async (contactId: number | null, startDate?: string, endDate?: string) => {
     if (contactId === null) {
       setDebtData([]);
       setRemainingAmount(0);
@@ -56,6 +69,18 @@ export default function DebtReportScreen() {
     try {
       setDebtLoading(true);
 
+      const invoiceFilters = [eq(invoices.contactId, contactId)];
+      if (startDate && endDate) {
+        invoiceFilters.push(gte(invoices.entryDate, startDate));
+        invoiceFilters.push(lte(invoices.entryDate, endDate));
+      }
+
+      const paymentFilters = [eq(payments.contactId, contactId)];
+      if (startDate && endDate) {
+        paymentFilters.push(gte(payments.paymentDate, startDate));
+        paymentFilters.push(lte(payments.paymentDate, endDate));
+      }
+
       const invoiceRes = await db
         .select({
           id: invoices.id,
@@ -64,7 +89,7 @@ export default function DebtReportScreen() {
           code: invoices.code,
         })
         .from(invoices)
-        .where(eq(invoices.contactId, contactId));
+        .where(and(...invoiceFilters));
 
       const paymentRes = await db
         .select({
@@ -73,7 +98,7 @@ export default function DebtReportScreen() {
           amount: payments.amount,
         })
         .from(payments)
-        .where(eq(payments.contactId, contactId));
+        .where(and(...paymentFilters));
 
       const combinedData: DebtItem[] = [
         ...invoiceRes.map((inv) => ({
@@ -142,13 +167,24 @@ export default function DebtReportScreen() {
     setSelectedContactId(contact.id);
     setSelectedContactName(contact.name);
     setFilterVisible(false);
-    fetchDebtData(contact.id);
+    const { startDate, endDate } = getDateRange(dateAnchor);
+    fetchDebtData(contact.id, startDate, endDate);
   };
 
   const handleClearFilter = () => {
     setSelectedContactId(null);
     setSelectedContactName(null);
     fetchDebtData(null);
+  };
+
+  const handleShiftDate = (direction: -1 | 1) => {
+    const nextAnchor = dateAnchor.add(direction, "year");
+    setDateAnchor(nextAnchor);
+    setSelectedDate(getDateLabel(nextAnchor));
+    if (selectedContactId !== null) {
+      const { startDate, endDate } = getDateRange(nextAnchor);
+      fetchDebtData(selectedContactId, startDate, endDate);
+    }
   };
 
   useEffect(() => {
@@ -168,6 +204,12 @@ export default function DebtReportScreen() {
           selectedContactName={selectedContactName}
           onOpenFilter={() => setFilterVisible(true)}
           onClearFilter={handleClearFilter}
+        />
+
+        <DateFilter
+          selectedDate={selectedDate}
+          onChevronLeftPress={() => handleShiftDate(-1)}
+          onChevronRightPress={() => handleShiftDate(1)}
         />
 
         {selectedContactId !== null ? (
@@ -203,9 +245,9 @@ export default function DebtReportScreen() {
                         </View>
                         <View style={styles.debtAmountContainer}>
                           <MaterialCommunityIcons
-                            name={item.type === "invoice" ? "minus" : "plus"}
+                            name={item.type === "invoice" ? "plus" : "minus"}
                             size={16}
-                            color={item.type === "invoice" ? "#EF4444" : "#19a14b"}
+                            color={item.type === "invoice" ? Colors.success : Colors.danger}
                             style={{ marginRight: 4 }}
                           />
                           <Text
@@ -262,6 +304,20 @@ export function ContactFilter({ selectedContactName, onOpenFilter, onClearFilter
           <MaterialCommunityIcons name="close" size={18} color={Colors.text} />
         </Pressable>
       )}
+    </View>
+  );
+}
+
+export function DateFilter({ selectedDate, onChevronLeftPress, onChevronRightPress }: any) {
+  return (
+    <View style={styles.dateFilterRow}>
+      <Pressable style={styles.dateNavButton} onPress={onChevronLeftPress}>
+        <MaterialCommunityIcons name="chevron-left" size={24} color={Colors.text} />
+      </Pressable>
+      <Text style={styles.dateFilterLabel}>{selectedDate}</Text>
+      <Pressable style={styles.dateNavButton} onPress={onChevronRightPress}>
+        <MaterialCommunityIcons name="chevron-right" size={24} color={Colors.text} />
+      </Pressable>
     </View>
   );
 }
@@ -362,7 +418,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.lg,
+    paddingBottom: 32,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
   },
@@ -480,10 +536,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   debtAmountInvoice: {
-    color: "#EF4444",
+    color: Colors.success,
   },
   debtAmountPayment: {
-    color: "#19a14b",
+    color: Colors.danger,
   },
   remainingContainer: {
     flexDirection: "row",
@@ -522,5 +578,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing.lg,
     fontWeight: "500",
+  },
+  dateFilterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
+  },
+  dateFilterLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.primary,
+  },
+  dateNavButton: {
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

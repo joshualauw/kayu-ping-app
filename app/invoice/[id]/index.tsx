@@ -190,7 +190,10 @@ export default function InvoiceDetailPage() {
           <View style={styles.paymentHeader}>
             <Text style={styles.sectionTitle}>History Pembayaran</Text>
             <View
-              style={[styles.status, { backgroundColor: invoice.status === "paid" ? Colors.accent : Colors.secondary }]}
+              style={[
+                styles.status,
+                { backgroundColor: invoice.status === "paid" ? Colors.success : Colors.secondary },
+              ]}
             >
               <Text style={[styles.statusText, { color: invoice.status === "paid" ? "white" : Colors.text }]}>
                 {invoice.status === "paid" ? "Lunas" : "Belum Lunas"}
@@ -346,8 +349,8 @@ const styles = StyleSheet.create({
   paymentLabel: { fontSize: 14, color: "#888", fontWeight: "500" },
   paymentValue: { fontSize: 14, fontWeight: "600", color: Colors.text },
   paymentLabelTotal: { fontSize: 15, color: "#888", fontWeight: "600" },
-  paymentValueTotal: { fontSize: 15, fontWeight: "700", color: Colors.text },
-  remainingText: { color: Colors.primary, fontSize: 16 },
+  paymentValueTotal: { fontSize: 15, fontWeight: "600", color: Colors.text },
+  remainingText: { color: Colors.text, fontSize: 15 },
   allocationsSection: {
     marginTop: Spacing.sm,
     marginBottom: Spacing.xs,

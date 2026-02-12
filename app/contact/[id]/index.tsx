@@ -111,13 +111,13 @@ export default function ContactDetailScreen() {
         </View>
 
         <View style={styles.actionRow}>
-          <ActionBtn icon="call" label="Call" onPress={makeCall} color={Colors.accent} />
-          <ActionBtn icon="logo-whatsapp" label="WhatsApp" onPress={sendWhatsapp} color={Colors.accent} />
+          <ActionBtn icon="call" label="Call" onPress={makeCall} color={Colors.success} />
+          <ActionBtn icon="logo-whatsapp" label="WhatsApp" onPress={sendWhatsapp} color={Colors.success} />
           <ActionBtn
             icon="chatbubble-outline"
             label="SMS"
             onPress={() => Linking.openURL(`sms:${contact.phoneNumber}`)}
-            color={Colors.accent}
+            color={Colors.success}
           />
         </View>
 
