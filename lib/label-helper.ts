@@ -32,3 +32,14 @@ export function getPaymentTypeLabel(type: string) {
       return "Tidak Diketahui";
   }
 }
+
+export function getDebtTypeLabel(type: string) {
+  switch (type) {
+    case "piutang":
+      return "Piutang";
+    case "utang":
+      return "Utang";
+    default:
+      return "Tidak Diketahui";
+  }
+}

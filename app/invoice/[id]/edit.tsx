@@ -1,4 +1,5 @@
 import { Container } from "@/components/Container";
+import { image_compression_quality } from "@/constants/common";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts, invoices } from "@/db/schema";
@@ -301,7 +302,7 @@ export default function InvoiceEditScreen() {
                   onPress={async () => {
                     const result = await ImagePicker.launchImageLibraryAsync({
                       mediaTypes: ["images"],
-                      quality: 0.9,
+                      quality: image_compression_quality,
                     });
                     if (!result.canceled) {
                       onChange(result.assets[0].uri);

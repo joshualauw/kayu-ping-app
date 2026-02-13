@@ -1,5 +1,6 @@
 import { Container } from "@/components/Container";
 import PaymentAllocationModal, { AllocationItem } from "@/components/PaymentAllocation";
+import { image_compression_quality } from "@/constants/common";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts, paymentAllocations, payments } from "@/db/schema";
@@ -422,7 +423,7 @@ export default function AddPaymentScreen() {
                   onPress={async () => {
                     const result = await ImagePicker.launchImageLibraryAsync({
                       mediaTypes: ["images"],
-                      quality: 0.9,
+                      quality: image_compression_quality,
                     });
                     if (!result.canceled) {
                       onChange(result.assets[0].uri);

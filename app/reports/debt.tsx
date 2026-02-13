@@ -2,11 +2,15 @@ import { Container } from "@/components/Container";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts, invoices, payments } from "@/db/schema";
+import { getDebtTypeLabel } from "@/lib/label-helper";
 import { formatCurrency } from "@/lib/utils";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { and, desc, eq, gte, like, lte } from "drizzle-orm";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Print from "expo-print";
 import { router } from "expo-router";
+import { shareAsync } from "expo-sharing";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -36,6 +40,7 @@ interface DebtItem {
 }
 
 export default function DebtReportScreen() {
+  const [selectedType, setSelectedType] = useState<"piutang" | "utang">("piutang");
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterQuery, setFilterQuery] = useState("");
   const [contactResults, setContactResults] = useState<ContactFilterItem[]>([]);
@@ -59,7 +64,12 @@ export default function DebtReportScreen() {
     };
   };
 
-  const fetchDebtData = async (contactId: number | null, startDate?: string, endDate?: string) => {
+  const fetchDebtData = async (
+    contactId: number | null,
+    type: "piutang" | "utang",
+    startDate?: string,
+    endDate?: string,
+  ) => {
     if (contactId === null) {
       setDebtData([]);
       setRemainingAmount(0);
@@ -69,13 +79,16 @@ export default function DebtReportScreen() {
     try {
       setDebtLoading(true);
 
-      const invoiceFilters = [eq(invoices.contactId, contactId)];
+      const invoiceType = type === "piutang" ? "sales" : "purchase";
+      const paymentType = type === "piutang" ? "income" : "expense";
+
+      const invoiceFilters = [eq(invoices.contactId, contactId), eq(invoices.type, invoiceType)];
       if (startDate && endDate) {
         invoiceFilters.push(gte(invoices.entryDate, startDate));
         invoiceFilters.push(lte(invoices.entryDate, endDate));
       }
 
-      const paymentFilters = [eq(payments.contactId, contactId)];
+      const paymentFilters = [eq(payments.contactId, contactId), eq(payments.type, paymentType)];
       if (startDate && endDate) {
         paymentFilters.push(gte(payments.paymentDate, startDate));
         paymentFilters.push(lte(payments.paymentDate, endDate));
@@ -168,13 +181,13 @@ export default function DebtReportScreen() {
     setSelectedContactName(contact.name);
     setFilterVisible(false);
     const { startDate, endDate } = getDateRange(dateAnchor);
-    fetchDebtData(contact.id, startDate, endDate);
+    fetchDebtData(contact.id, selectedType, startDate, endDate);
   };
 
   const handleClearFilter = () => {
     setSelectedContactId(null);
     setSelectedContactName(null);
-    fetchDebtData(null);
+    fetchDebtData(null, selectedType);
   };
 
   const handleShiftDate = (direction: -1 | 1) => {
@@ -183,9 +196,161 @@ export default function DebtReportScreen() {
     setSelectedDate(getDateLabel(nextAnchor));
     if (selectedContactId !== null) {
       const { startDate, endDate } = getDateRange(nextAnchor);
-      fetchDebtData(selectedContactId, startDate, endDate);
+      fetchDebtData(selectedContactId, selectedType, startDate, endDate);
     }
   };
+
+  const handleExportToPDF = async () => {
+    if (!selectedContactName || debtData.length === 0) return;
+
+    const debtTypeLabel = selectedType === "piutang" ? "Piutang" : "Utang";
+
+    const rows = debtData
+      .map(
+        (item) => `
+        <div class="debt-row">
+          <div>
+            <div style="font-size: 14px; color: #666; font-weight: 500;">${dayjs(item.date).format("DD MMM YYYY")}</div>
+          </div>
+          <div style="display: flex; align-items: center;">
+            <span style="font-size: 14px; font-weight: 600;">${item.type === "invoice" ? "+" : "-"} ${formatCurrency(item.amount)}</span>
+          </div>
+        </div>
+      `,
+      )
+      .join("");
+
+    const html = `
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+          <style>
+            body {
+              font-family: 'Helvetica', 'Arial', sans-serif;
+              padding: 20px;
+              margin: 0;
+            }
+            @page {
+              margin: 10mm;
+              size: A4;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #000;
+              padding-bottom: 20px;
+              page-break-inside: avoid;
+            }
+            .title {
+              font-size: 24px;
+              font-weight: bold;
+              margin-bottom: 10px;
+            }
+            .subtitle {
+              font-size: 14px;
+              color: #666;
+            }
+            .info-section {
+              margin-bottom: 20px;
+              page-break-inside: avoid;
+            }
+            .info-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 8px 0;
+              font-size: 14px;
+            }
+            .info-label {
+              font-weight: 600;
+            }
+            .list-container {
+              margin-top: 20px;
+            }
+            .section-title {
+              font-size: 16px;
+              font-weight: bold;
+              margin-bottom: 15px;
+              padding-bottom: 10px;
+              border-bottom: 1px solid #000;
+              page-break-inside: avoid;
+            }
+            .debt-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 12px 0;
+              border-bottom: 1px solid #e5e7eb;
+              page-break-inside: avoid;
+            }
+            .total-section {
+              margin-top: 20px;
+              padding-top: 15px;
+              border-top: 2px solid #000;
+              display: flex;
+              justify-content: space-between;
+              font-size: 16px;
+              font-weight: bold;
+              page-break-inside: avoid;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">Laporan ${debtTypeLabel}</div>
+            <div class="subtitle">Dicetak pada ${dayjs().format("DD MMMM YYYY HH:mm")}</div>
+          </div>
+          
+          <div class="info-section">
+            <div class="info-row">
+              <span class="info-label">Kontak:</span>
+              <span>${selectedContactName}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Periode:</span>
+              <span>${selectedDate}</span>
+            </div>
+          </div>
+
+          <div class="list-container">
+            <div class="section-title">Riwayat ${debtTypeLabel}</div>
+            ${rows}
+          </div>
+
+          <div class="total-section">
+            <span>Total Sisa ${debtTypeLabel}:</span>
+            <span>${formatCurrency(Math.abs(remainingAmount))}</span>
+          </div>
+        </body>
+      </html>
+    `;
+
+    try {
+      const { uri } = await Print.printToFileAsync({ html });
+
+      const contactNameKebab = selectedContactName
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-]/g, "");
+
+      const fileName = `Laporan-${debtTypeLabel}-${contactNameKebab}-${selectedDate}.pdf`;
+      const newUri = `${FileSystem.cacheDirectory}${fileName}`;
+
+      await FileSystem.moveAsync({
+        from: uri,
+        to: newUri,
+      });
+
+      await shareAsync(newUri, { UTI: ".pdf", mimeType: "application/pdf" });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedContactId !== null) {
+      const { startDate, endDate } = getDateRange(dateAnchor);
+      fetchDebtData(selectedContactId, selectedType, startDate, endDate);
+    }
+  }, [selectedType]);
 
   useEffect(() => {
     if (!filterVisible) return;
@@ -200,6 +365,21 @@ export default function DebtReportScreen() {
   return (
     <Container>
       <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={styles.typeTabs}>
+          <Pressable
+            style={[styles.typeTab, selectedType === "piutang" && styles.typeTabActive]}
+            onPress={() => setSelectedType("piutang")}
+          >
+            <Text style={[styles.typeTabText, selectedType === "piutang" && styles.typeTabTextActive]}>Piutang</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.typeTab, selectedType === "utang" && styles.typeTabActive]}
+            onPress={() => setSelectedType("utang")}
+          >
+            <Text style={[styles.typeTabText, selectedType === "utang" && styles.typeTabTextActive]}>Utang</Text>
+          </Pressable>
+        </View>
+
         <ContactFilter
           selectedContactName={selectedContactName}
           onOpenFilter={() => setFilterVisible(true)}
@@ -218,10 +398,18 @@ export default function DebtReportScreen() {
               <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
             ) : (
               <View style={styles.debtContainer}>
-                <Text style={styles.sectionTitle}>Riwayat Hutang</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Riwayat {getDebtTypeLabel(selectedType)}</Text>
+                  {debtData.length > 0 && (
+                    <Pressable style={styles.pdfButton} onPress={handleExportToPDF}>
+                      <MaterialCommunityIcons name="printer" size={18} color={Colors.primary} />
+                      <Text style={styles.pdfButtonText}>Cetak PDF</Text>
+                    </Pressable>
+                  )}
+                </View>
 
                 {debtData.length === 0 ? (
-                  <Text style={styles.emptyText}>Belum ada hutang untuk kontak ini.</Text>
+                  <Text style={styles.emptyText}>Belum ada {getDebtTypeLabel(selectedType)} untuk kontak ini.</Text>
                 ) : (
                   <View style={styles.debtList}>
                     {debtData.map((item, index) => (
@@ -240,7 +428,6 @@ export default function DebtReportScreen() {
                         }}
                       >
                         <View style={styles.debtLeftSection}>
-                          {item.type === "invoice" && item.code && <Text style={styles.debtCode}>#{item.code}</Text>}
                           <Text style={styles.debtDate}>{dayjs(item.date).format("DD MMM YYYY")}</Text>
                         </View>
                         <View style={styles.debtAmountContainer}>
@@ -265,7 +452,7 @@ export default function DebtReportScreen() {
                 )}
 
                 <View style={styles.remainingContainer}>
-                  <Text style={styles.remainingLabel}>Total Sisa Utang:</Text>
+                  <Text style={styles.remainingLabel}>Total Sisa {getDebtTypeLabel(selectedType)}:</Text>
                   <View style={styles.remainingAmountContainer}>
                     <Text style={styles.remainingAmount}>{formatCurrency(Math.abs(remainingAmount))}</Text>
                   </View>
@@ -274,7 +461,9 @@ export default function DebtReportScreen() {
             )}
           </>
         ) : (
-          <Text style={styles.placeholderText}>Pilih kontak untuk melihat riwayat hutang.</Text>
+          <Text style={styles.placeholderText}>
+            Pilih kontak untuk melihat riwayat {getDebtTypeLabel(selectedType)}.
+          </Text>
         )}
 
         <ContactFilterModal
@@ -379,6 +568,33 @@ export function ContactFilterModal({
 }
 
 const styles = StyleSheet.create({
+  typeTabs: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  typeTab: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+    alignItems: "center",
+  },
+  typeTabActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  typeTabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.text,
+  },
+  typeTabTextActive: {
+    color: "white",
+  },
   filterButtonContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -494,11 +710,30 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: 12,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
   sectionTitle: {
     fontSize: 14,
     fontWeight: "700",
     color: Colors.text,
-    marginBottom: Spacing.sm,
+  },
+  pdfButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: 8,
+    backgroundColor: Colors.secondary,
+  },
+  pdfButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.primary,
   },
   debtList: {
     marginBottom: Spacing.sm,
@@ -514,12 +749,6 @@ const styles = StyleSheet.create({
   debtLeftSection: {
     flexDirection: "column",
     flex: 1,
-  },
-  debtCode: {
-    fontSize: 12,
-    color: "#999",
-    fontWeight: "400",
-    marginBottom: Spacing.xs,
   },
   debtDate: {
     fontSize: 14,

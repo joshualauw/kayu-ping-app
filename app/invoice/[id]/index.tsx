@@ -29,7 +29,6 @@ interface InvoiceDetail {
     id: number;
     paymentDate: string;
     amount: number;
-    originalAmount: number;
   }[];
 }
 
@@ -105,7 +104,6 @@ export default function InvoiceDetailPage() {
               id: payments.id,
               paymentDate: payments.paymentDate,
               amount: paymentAllocations.amount,
-              originalAmount: payments.amount,
             })
             .from(paymentAllocations)
             .leftJoin(payments, eq(paymentAllocations.paymentId, payments.id))
@@ -117,7 +115,6 @@ export default function InvoiceDetailPage() {
               id: row.id!,
               paymentDate: row.paymentDate || "",
               amount: row.amount,
-              originalAmount: row.originalAmount,
             }));
 
           const paidAmount = allocations.reduce((sum, row) => sum + row.amount, 0);
@@ -218,7 +215,6 @@ export default function InvoiceDetailPage() {
                 >
                   <View style={styles.allocationLeft}>
                     <Text style={styles.allocationDate}>{dayjs(allocation.paymentDate).format("DD MMM YYYY")}</Text>
-                    <Text>Dari {formatCurrency(allocation.originalAmount)}</Text>
                   </View>
                   <View style={styles.allocationRight}>
                     <Text style={styles.allocationAmount}>{formatCurrency(allocation.amount)}</Text>

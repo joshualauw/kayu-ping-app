@@ -26,7 +26,6 @@ interface PaymentDetail {
   mediaUrl: string | null;
   allocations: {
     id: number;
-    invoiceCode: string;
     entryDate: string;
     amount: number;
   }[];
@@ -102,7 +101,6 @@ export default function PaymentDetailScreen() {
           const allocationRows = await db
             .select({
               id: invoices.id,
-              invoiceCode: invoices.code,
               entryDate: invoices.entryDate,
               amount: paymentAllocations.amount,
               originalAmount: invoices.amount,
@@ -115,7 +113,6 @@ export default function PaymentDetailScreen() {
             .filter((row) => row.id !== null)
             .map((row) => ({
               id: row.id!,
-              invoiceCode: row.invoiceCode || "",
               entryDate: row.entryDate || "",
               amount: row.amount,
             }));
@@ -192,7 +189,6 @@ export default function PaymentDetailScreen() {
                   onPress={() => router.push(`/invoice/${allocation.id}`)}
                 >
                   <View style={styles.allocationLeft}>
-                    <Text style={styles.allocationCode}>{allocation.invoiceCode}</Text>
                     <Text style={styles.allocationDate}>{dayjs(allocation.entryDate).format("DD MMM YYYY")}</Text>
                   </View>
                   <View style={styles.allocationRight}>
@@ -295,12 +291,6 @@ const styles = StyleSheet.create({
   allocationLeft: {
     flexDirection: "column",
     flex: 1,
-  },
-  allocationCode: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#888",
-    marginBottom: 2,
   },
   allocationDate: {
     fontSize: 14,

@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { invoices, paymentAllocations } from "@/db/schema";
 import { formatCurrency, formatNumber, unformatNumber } from "@/lib/utils";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
@@ -72,37 +72,30 @@ export default function PaymentAllocationModal({
           return;
         }
 
-        const invoiceResult = await db
+        const invoicesWithAllocations = await db
           .select({
             id: invoices.id,
             code: invoices.code,
             amount: invoices.amount,
             entryDate: invoices.entryDate,
+            totalAllocated: sql<number>`COALESCE(SUM(${paymentAllocations.amount}), 0)`.as("total_allocated"),
           })
           .from(invoices)
+          .leftJoin(paymentAllocations, eq(paymentAllocations.invoiceId, invoices.id))
           .where(and(eq(invoices.contactId, contactId), eq(invoices.type, type === "income" ? "sales" : "purchase")))
-          .orderBy(invoices.id);
+          .groupBy(invoices.id)
+          .orderBy(asc(invoices.entryDate));
 
-        const invoicesWithRemaining = await Promise.all(
-          invoiceResult.map(async (inv) => {
-            const allocatedToInvoice = await db
-              .select({
-                amount: paymentAllocations.amount,
-              })
-              .from(paymentAllocations)
-              .where(eq(paymentAllocations.invoiceId, inv.id));
+        const invoicesWithRemaining = invoicesWithAllocations
+          .map((inv) => ({
+            id: inv.id,
+            code: inv.code,
+            entryDate: inv.entryDate,
+            amount: Math.max(0, inv.amount - inv.totalAllocated),
+          }))
+          .filter((inv) => inv.amount > 0);
 
-            const totalAllocated = allocatedToInvoice.reduce((sum, a) => sum + a.amount, 0);
-            const remaining = inv.amount - totalAllocated;
-
-            return {
-              ...inv,
-              amount: remaining > 0 ? remaining : 0,
-            };
-          }),
-        );
-
-        setInvoiceOptions(invoicesWithRemaining.filter((inv) => inv.amount > 0));
+        setInvoiceOptions(invoicesWithRemaining);
       } catch (error) {
         console.error(error);
       } finally {
