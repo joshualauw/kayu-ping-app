@@ -14,15 +14,12 @@ import * as yup from "yup";
 
 const schema = yup.object({
   name: yup.string().required("Nama wajib diisi"),
-  phone: yup
-    .string()
-    .required("Nomor telepon wajib diisi")
-    .matches(/^\+?\d{6,15}$/, "Nomor telepon tidak valid"),
+  phoneNumber: yup.string().nullable(),
   category: yup
     .string()
     .oneOf(["supplier", "client", "driver", "others"], "Kategori tidak valid")
     .required("Kategori wajib dipilih"),
-  notes: yup.string().optional(),
+  notes: yup.string().nullable(),
 });
 
 type FormValues = yup.InferType<typeof schema>;
@@ -39,7 +36,7 @@ export default function AddContactScreen() {
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", phone: "", category: "client" },
+    defaultValues: { name: "", phoneNumber: "", category: "client", notes: "" },
   });
 
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -66,7 +63,7 @@ export default function AddContactScreen() {
     if (!nameValue || nameValue.length < 2) return [];
 
     const searchTerm = nameValue.toLowerCase();
-    return phoneContacts.filter((c) => c.name?.toLowerCase().includes(searchTerm)).slice(0, 5);
+    return phoneContacts.filter((c) => c.name?.toLowerCase().includes(searchTerm)).slice(0, 6);
   }, [nameValue, phoneContacts]);
 
   const selectContact = (contact: Contacts.Contact) => {
@@ -75,23 +72,36 @@ export default function AddContactScreen() {
     const cleanPhone = phone.replace(/[^0-9+]/g, "");
 
     setValue("name", name);
-    setValue("phone", cleanPhone);
+    setValue("phoneNumber", cleanPhone);
     setShowSuggestions(false);
   };
 
   const onSubmit = async (data: FormValues) => {
     try {
-      const existingContact = db.select().from(contacts).where(eq(contacts.phoneNumber, data.phone)).get();
-      if (existingContact) {
-        setError("phone", { type: "manual", message: "Nomor telepon sudah terdaftar a/n " + existingContact.name });
-        return;
+      if (data.phoneNumber) {
+        const existingContact = db.select().from(contacts).where(eq(contacts.phoneNumber, data.phoneNumber)).get();
+        if (existingContact) {
+          setError("phoneNumber", {
+            type: "manual",
+            message: "Nomor telepon sudah terdaftar a/n " + existingContact.name,
+          });
+          return;
+        }
+
+        if (!data.phoneNumber.match(/^\+?\d{6,15}$/)) {
+          setError("phoneNumber", {
+            type: "manual",
+            message: "Nomor telepon tidak valid",
+          });
+          return;
+        }
       }
 
       await db.insert(contacts).values({
         name: data.name,
-        phoneNumber: data.phone,
+        phoneNumber: data.phoneNumber || null,
         category: data.category,
-        notes: data.notes,
+        notes: data.notes || null,
       });
 
       Toast.show({
@@ -135,7 +145,7 @@ export default function AddContactScreen() {
                 value={value}
                 returnKeyType="next"
               />
-              {showSuggestions && value.length > 1 && (
+              {showSuggestions && value.length > 1 && filteredContacts.length > 0 && (
                 <View style={styles.dropdown}>
                   {filteredContacts.map((contact, i) => (
                     <Pressable key={i} style={styles.option} onPress={() => selectContact(contact)}>
@@ -153,19 +163,19 @@ export default function AddContactScreen() {
         <Text style={styles.label}>Nomor Telepon</Text>
         <Controller
           control={control}
-          name="phone"
+          name="phoneNumber"
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
-              style={[styles.input, errors.phone && styles.inputError]}
+              style={[styles.input, errors.phoneNumber && styles.inputError]}
               placeholder="Nomor Telepon"
               onBlur={onBlur}
               onChangeText={onChange}
-              value={value}
+              value={value || ""}
               keyboardType="phone-pad"
             />
           )}
         />
-        {errors.phone && <Text style={styles.error}>{errors.phone.message}</Text>}
+        {errors.phoneNumber && <Text style={styles.error}>{errors.phoneNumber.message}</Text>}
 
         <Text style={styles.label}>Kategori</Text>
         <Controller
@@ -222,7 +232,7 @@ export default function AddContactScreen() {
               placeholder="Catatan singkat"
               onBlur={onBlur}
               onChangeText={onChange}
-              value={value}
+              value={value || ""}
               multiline
               numberOfLines={3}
             />

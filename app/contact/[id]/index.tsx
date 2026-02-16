@@ -17,7 +17,7 @@ import Toast from "react-native-toast-message";
 interface ContactDetail {
   id: number;
   name: string;
-  phoneNumber: string;
+  phoneNumber: string | null;
   category: string;
   notes: string | null;
   createdAt: string | null;
@@ -110,19 +110,21 @@ export default function ContactDetailScreen() {
           </View>
         </View>
 
-        <View style={styles.actionRow}>
-          <ActionBtn icon="call" label="Call" onPress={makeCall} color={Colors.success} />
-          <ActionBtn icon="logo-whatsapp" label="WhatsApp" onPress={sendWhatsapp} color={Colors.success} />
-          <ActionBtn
-            icon="chatbubble-outline"
-            label="SMS"
-            onPress={() => Linking.openURL(`sms:${contact.phoneNumber}`)}
-            color={Colors.success}
-          />
-        </View>
+        {contact.phoneNumber && (
+          <View style={styles.actionRow}>
+            <ActionBtn icon="call" label="Call" onPress={makeCall} color={Colors.success} />
+            <ActionBtn icon="logo-whatsapp" label="WhatsApp" onPress={sendWhatsapp} color={Colors.success} />
+            <ActionBtn
+              icon="chatbubble-outline"
+              label="SMS"
+              onPress={() => Linking.openURL(`sms:${contact.phoneNumber}`)}
+              color={Colors.success}
+            />
+          </View>
+        )}
 
         <View style={styles.infoBox}>
-          <InfoItem label="Nomor Telepon" value={contact.phoneNumber} icon="call-outline" />
+          {contact.phoneNumber && <InfoItem label="Nomor Telepon" value={contact.phoneNumber} icon="call-outline" />}
           {contact.notes && <InfoItem label="Notes" value={contact.notes} icon="document-text-outline" />}
           <InfoItem
             label="Ditambahkan Pada"

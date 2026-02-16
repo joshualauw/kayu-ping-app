@@ -6,7 +6,7 @@ export const contacts = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     name: text("name").notNull(),
-    phoneNumber: text("phone_number").unique().notNull(),
+    phoneNumber: text("phone_number").unique(),
     category: text("category").notNull(), // supplier, client, driver, others
     notes: text("notes"),
     createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),

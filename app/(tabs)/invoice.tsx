@@ -3,6 +3,7 @@ import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts, invoices, paymentAllocations } from "@/db/schema";
 import "@/lib/dayjs-config";
+import { getContactCategoryLabel } from "@/lib/label-helper";
 import { formatCurrency } from "@/lib/utils";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
@@ -34,7 +35,7 @@ interface InvoiceListItem {
 interface ContactFilterItem {
   id: number;
   name: string;
-  phoneNumber: string;
+  category: string;
 }
 
 export default function InvoiceScreen() {
@@ -50,8 +51,8 @@ export default function InvoiceScreen() {
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
   const [selectedContactName, setSelectedContactName] = useState<string | null>(null);
   const [dateFilterVisible, setDateFilterVisible] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string>(dayjs().format("MMM YYYY"));
-  const [dateFilterType, setDateFilterType] = useState<"all" | "day" | "week" | "month" | "year">("month");
+  const [selectedDate, setSelectedDate] = useState<string>("Semua");
+  const [dateFilterType, setDateFilterType] = useState<"all" | "day" | "week" | "month" | "year">("all");
   const [dateAnchor, setDateAnchor] = useState(dayjs());
   const [statusFilterVisible, setStatusFilterVisible] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<"all" | "paid" | "pending">("all");
@@ -230,7 +231,7 @@ export default function InvoiceScreen() {
         .select({
           id: contacts.id,
           name: contacts.name,
-          phoneNumber: contacts.phoneNumber,
+          category: contacts.category,
         })
         .from(contacts)
         .where(and(...filters))
@@ -545,7 +546,7 @@ export function ContactFilterModal({
                       onPress={() => onSelectContact(item)}
                     >
                       <Text style={styles.contactName}>{item.name}</Text>
-                      <Text style={styles.contactPhone}>{item.phoneNumber}</Text>
+                      <Text style={styles.contactCategory}>{getContactCategoryLabel(item.category)}</Text>
                     </Pressable>
                   )}
                 />
@@ -944,7 +945,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.text,
   },
-  contactPhone: {
+  contactCategory: {
     fontSize: 12,
     color: "#888",
     marginTop: 2,

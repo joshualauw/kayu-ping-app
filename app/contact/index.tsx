@@ -132,7 +132,7 @@ export default function ContactScreen() {
       <Avatar name={item.name} />
       <View style={styles.infoColumn}>
         <Text style={styles.nameText}>{item.name}</Text>
-        <Text style={styles.phoneText}>{item.phoneNumber}</Text>
+        {item.phoneNumber && <Text style={styles.phoneText}>{item.phoneNumber}</Text>}
         <Badge label={getCategoryLabel(item.category)} />
       </View>
     </Pressable>

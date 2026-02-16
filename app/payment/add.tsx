@@ -5,6 +5,7 @@ import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts, paymentAllocations, payments } from "@/db/schema";
 import { saveFileToDisk } from "@/lib/image-helper";
+import { getContactCategoryLabel } from "@/lib/label-helper";
 import { formatDate, formatNumber, unformatNumber } from "@/lib/utils";
 import { yupResolver } from "@hookform/resolvers/yup";
 import dayjs from "dayjs";
@@ -33,7 +34,6 @@ import * as yup from "yup";
 interface ContactDropdownItem {
   id: number;
   name: string;
-  phoneNumber: string;
   category: string;
 }
 
@@ -103,7 +103,6 @@ export default function AddPaymentScreen() {
         .select({
           id: contacts.id,
           name: contacts.name,
-          phoneNumber: contacts.phoneNumber,
           category: contacts.category,
         })
         .from(contacts)
@@ -228,7 +227,7 @@ export default function AddPaymentScreen() {
                     {contactList.map((contact, i) => (
                       <Pressable key={i} style={styles.option} onPress={() => selectContact(contact)}>
                         <Text style={{ fontWeight: "bold" }}>{contact.name}</Text>
-                        <Text style={{ fontSize: 12, color: "gray" }}>{contact.phoneNumber}</Text>
+                        <Text style={{ fontSize: 12, color: "gray" }}>{getContactCategoryLabel(contact.category)}</Text>
                       </Pressable>
                     ))}
                   </View>

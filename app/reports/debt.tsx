@@ -2,7 +2,7 @@ import { Container } from "@/components/Container";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts, invoices, payments } from "@/db/schema";
-import { getDebtTypeLabel } from "@/lib/label-helper";
+import { getContactCategoryLabel, getDebtTypeLabel } from "@/lib/label-helper";
 import { formatCurrency } from "@/lib/utils";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import dayjs from "dayjs";
@@ -28,7 +28,7 @@ import {
 interface ContactFilterItem {
   id: number;
   name: string;
-  phoneNumber: string;
+  category: string;
 }
 
 interface DebtItem {
@@ -160,7 +160,7 @@ export default function DebtReportScreen() {
         .select({
           id: contacts.id,
           name: contacts.name,
-          phoneNumber: contacts.phoneNumber,
+          category: contacts.category,
         })
         .from(contacts)
         .where(and(...filters))
@@ -552,7 +552,7 @@ export function ContactFilterModal({
                     onPress={() => onSelectContact(item)}
                   >
                     <Text style={styles.contactName}>{item.name}</Text>
-                    {item.phoneNumber ? <Text style={styles.contactPhone}>{item.phoneNumber}</Text> : null}
+                    <Text style={styles.contactCategory}>{getContactCategoryLabel(item.category)}</Text>
                   </Pressable>
                 )}
                 ListEmptyComponent={
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.text,
   },
-  contactPhone: {
+  contactCategory: {
     fontSize: 12,
     color: "#888",
     marginTop: 2,

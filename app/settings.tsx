@@ -57,6 +57,7 @@ export default function SettingsScreen() {
 
       await FileSystem.deleteAsync(exportFolder, { idempotent: true });
     } catch (error) {
+      alert("Gagal mengekspor data");
       console.error("Gagal mengekspor data:", error);
     }
   }
@@ -111,6 +112,7 @@ export default function SettingsScreen() {
       alert("Data berhasil diimpor. Aplikasi akan dimulai ulang untuk menerapkan perubahan.");
       await Updates.reloadAsync();
     } catch (error) {
+      alert("Gagal mengimpor data");
       console.error("Gagal mengimpor data:", error);
     }
   }

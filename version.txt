@@ -1,0 +1,14 @@
+v1.1.0
+[v] pisahkan laporan utang dan piutang
+[v] tombol export to pdf
+[v] hapus kode invoice di list item laporan
+[v] hapus "Dari Rp. XXX" di list item history pembayaran di detail invoice
+[v] optimisasi query untuk dropdown pada alokasi invoice
+[v] compress kualitas gambar dari 0.9 ke 0.8
+
+v.1.1.1
+[v] Tambah indexing untuk performa
+[v] Ubah default filter jadi "Semua" pada nota dan pembayaran
+[v] perbaiki tombol export data gagal
+[v] Tambah suggestion add contact dari 5 jadi 6
+[v] Buat phone number optional

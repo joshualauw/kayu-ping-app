@@ -14,15 +14,12 @@ import * as yup from "yup";
 const schema = yup
   .object({
     name: yup.string().required("Nama wajib diisi"),
-    phone: yup
-      .string()
-      .required("Nomor telepon wajib diisi")
-      .matches(/^\+?\d{6,15}$/, "Nomor telepon tidak valid"),
+    phoneNumber: yup.string().nullable(),
     category: yup
       .string()
       .oneOf(["supplier", "client", "driver", "others"], "Kategori tidak valid")
       .required("Kategori wajib dipilih"),
-    note: yup.string().optional(),
+    note: yup.string().nullable(),
   })
   .required();
 
@@ -38,10 +35,11 @@ export default function ContactEditScreen() {
     control,
     handleSubmit,
     reset,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: yupResolver(schema),
-    defaultValues: { name: "", phone: "", category: "client", note: "" },
+    defaultValues: { name: "", phoneNumber: "", category: "client", note: "" },
   });
 
   useEffect(() => {
@@ -57,7 +55,7 @@ export default function ContactEditScreen() {
         if (res) {
           reset({
             name: res.name,
-            phone: res.phoneNumber,
+            phoneNumber: res.phoneNumber,
             category: res.category as FormValues["category"],
             note: res.notes || "",
           });
@@ -79,11 +77,30 @@ export default function ContactEditScreen() {
 
   const onSubmit = async (data: FormValues) => {
     try {
+      if (data.phoneNumber) {
+        const existingContact = db.select().from(contacts).where(eq(contacts.phoneNumber, data.phoneNumber)).get();
+        if (existingContact) {
+          setError("phoneNumber", {
+            type: "manual",
+            message: "Nomor telepon sudah terdaftar a/n " + existingContact.name,
+          });
+          return;
+        }
+
+        if (!data.phoneNumber.match(/^\+?\d{6,15}$/)) {
+          setError("phoneNumber", {
+            type: "manual",
+            message: "Nomor telepon tidak valid",
+          });
+          return;
+        }
+      }
+
       await db
         .update(contacts)
         .set({
           name: data.name,
-          phoneNumber: data.phone,
+          phoneNumber: data.phoneNumber || null,
           category: data.category,
           notes: data.note || null,
         })
@@ -138,19 +155,19 @@ export default function ContactEditScreen() {
         <Text style={styles.label}>Nomor Telepon</Text>
         <Controller
           control={control}
-          name="phone"
+          name="phoneNumber"
           render={({ field: { onChange, onBlur, value } }) => (
             <TextInput
-              style={[styles.input, errors.phone && styles.inputError]}
+              style={[styles.input, errors.phoneNumber && styles.inputError]}
               placeholder="Nomor Telepon"
               onBlur={onBlur}
               onChangeText={onChange}
-              value={value}
+              value={value || ""}
               keyboardType="phone-pad"
             />
           )}
         />
-        {errors.phone && <Text style={styles.error}>{errors.phone.message}</Text>}
+        {errors.phoneNumber && <Text style={styles.error}>{errors.phoneNumber.message}</Text>}
 
         <Text style={styles.label}>Kategori</Text>
         <Controller
@@ -207,7 +224,7 @@ export default function ContactEditScreen() {
               placeholder="Catatan singkat"
               onBlur={onBlur}
               onChangeText={onChange}
-              value={value}
+              value={value || ""}
               multiline
               numberOfLines={3}
             />

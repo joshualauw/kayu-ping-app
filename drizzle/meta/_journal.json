@@ -43,6 +43,27 @@
       "when": 1770444946973,
       "tag": "0005_clumsy_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1771158399038,
+      "tag": "0006_happy_bastion",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1771159103387,
+      "tag": "0007_tense_blink",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1771228767633,
+      "tag": "0008_damp_alice",
+      "breakpoints": true
     }
   ]
 }
