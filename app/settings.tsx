@@ -2,52 +2,55 @@ import { Container } from "@/components/Container";
 import { Colors, Spacing } from "@/constants/theme";
 import { DATABASE_NAME, expoDb } from "@/db/client";
 import { MaterialIcons } from "@expo/vector-icons";
+import { drizzle } from "drizzle-orm/expo-sqlite";
+import { migrate } from "drizzle-orm/expo-sqlite/migrator";
+import Constants from "expo-constants";
 import * as DocumentPicker from "expo-document-picker";
-import { Paths } from "expo-file-system";
 import * as FileSystem from "expo-file-system/legacy";
 import { Stack } from "expo-router";
 import * as Sharing from "expo-sharing";
+import * as SQLite from "expo-sqlite";
 import * as Updates from "expo-updates";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { unzip, zip } from "react-native-zip-archive";
+import migrations from "../drizzle/migrations";
 
 const MEDIA_FOLDER_NAME = "media";
+const CURRENT_DB_VERSION = 8; // Lihat di drizzle folder migrations
 
 export default function SettingsScreen() {
   async function handleExport() {
     try {
+      await expoDb.execAsync("VACUUM;");
       await expoDb.execAsync("PRAGMA wal_checkpoint(FULL);");
 
-      const dbPath = Paths.join(Paths.document, "SQLite", DATABASE_NAME);
-      const mediaPath = Paths.join(Paths.document, MEDIA_FOLDER_NAME);
-      const zipPath = Paths.join(Paths.cache, "backup.zip");
+      const baseDir = `${FileSystem.cacheDirectory}export_staging/`;
+      const mediaSource = `${FileSystem.documentDirectory}${MEDIA_FOLDER_NAME}/`;
+      const dbSource = `${FileSystem.documentDirectory}SQLite/${DATABASE_NAME}`;
+      const zipDest = `${FileSystem.cacheDirectory}backup.zip`;
 
-      const dbFileInfo = await FileSystem.getInfoAsync(dbPath);
-      if (!dbFileInfo.exists) {
-        console.error("Database does not exist at path:", dbPath);
-        return;
-      }
+      await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
 
-      const exportFolder = Paths.join(Paths.cache, "export_temp");
-      await FileSystem.makeDirectoryAsync(exportFolder, { intermediates: true });
+      const manifest = {
+        appVersion: Constants.expoConfig?.version || "N/A",
+        dbVersion: CURRENT_DB_VERSION,
+        exportDate: new Date().toISOString(),
+        device: Constants.platform?.android ? "android" : Constants.platform?.ios ? "ios" : "unknown",
+      };
+      await FileSystem.writeAsStringAsync(`${baseDir}manifest.json`, JSON.stringify(manifest));
 
       await FileSystem.copyAsync({
-        from: dbPath,
-        to: Paths.join(exportFolder, DATABASE_NAME),
+        from: mediaSource,
+        to: `${baseDir}${MEDIA_FOLDER_NAME}/`,
       });
 
-      const mediaFiles = await FileSystem.readDirectoryAsync(mediaPath);
-      const tempMediaFolder = Paths.join(exportFolder, MEDIA_FOLDER_NAME);
-      await FileSystem.makeDirectoryAsync(tempMediaFolder, { intermediates: true });
+      await FileSystem.copyAsync({
+        from: dbSource,
+        to: `${baseDir}${DATABASE_NAME}`,
+      });
 
-      for (const fileName of mediaFiles) {
-        await FileSystem.copyAsync({
-          from: Paths.join(mediaPath, fileName),
-          to: Paths.join(tempMediaFolder, fileName),
-        });
-      }
+      const zippedPath = await zip(baseDir, zipDest);
 
-      const zippedPath = await zip(exportFolder, zipPath);
       const fileUri = zippedPath.startsWith("file://") ? zippedPath : `file://${zippedPath}`;
       console.log("ZIP created at:", fileUri);
 
@@ -55,7 +58,7 @@ export default function SettingsScreen() {
         await Sharing.shareAsync(fileUri);
       }
 
-      await FileSystem.deleteAsync(exportFolder, { idempotent: true });
+      await FileSystem.deleteAsync(baseDir, { idempotent: true });
     } catch (error) {
       alert("Gagal mengekspor data");
       console.error("Gagal mengekspor data:", error);
@@ -72,43 +75,47 @@ export default function SettingsScreen() {
       if (result.canceled) return;
 
       const selectedFileUri = result.assets[0].uri;
-      const tempImportFolder = Paths.join(Paths.cache, "import_temp");
 
-      await FileSystem.deleteAsync(tempImportFolder, { idempotent: true });
-      await FileSystem.makeDirectoryAsync(tempImportFolder, { intermediates: true });
+      const baseDir = `${FileSystem.cacheDirectory}import_staging/`;
+      const mediaSource = `${FileSystem.documentDirectory}${MEDIA_FOLDER_NAME}/`;
+      const dbSource = `${FileSystem.documentDirectory}SQLite/`;
 
-      await unzip(selectedFileUri, tempImportFolder);
+      await FileSystem.deleteAsync(baseDir, { idempotent: true });
+      await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
+
+      await unzip(selectedFileUri, baseDir);
+
+      const stagingContent = await FileSystem.readDirectoryAsync(baseDir);
+      if (!stagingContent.includes(MEDIA_FOLDER_NAME) || !stagingContent.includes(DATABASE_NAME)) {
+        throw new Error("Invalid backup format");
+      }
+
+      const manifestStr = await FileSystem.readAsStringAsync(`${baseDir}manifest.json`);
+      const manifest = JSON.parse(manifestStr);
 
       await expoDb.closeAsync();
 
-      const importedDbPath = Paths.join(tempImportFolder, DATABASE_NAME);
-      const targetDbPath = Paths.join(Paths.document, "SQLite", DATABASE_NAME);
+      if (manifest.dbVersion < CURRENT_DB_VERSION) {
+        const newExpoDb = await SQLite.openDatabaseAsync(DATABASE_NAME);
+        const newDb = drizzle(newExpoDb);
+        await migrate(newDb, migrations);
 
-      if ((await FileSystem.getInfoAsync(importedDbPath)).exists) {
-        await FileSystem.copyAsync({
-          from: importedDbPath,
-          to: targetDbPath,
-        });
+        console.log(`Migrated database from version ${manifest.dbVersion} to ${CURRENT_DB_VERSION}`);
       }
 
-      const importedMediaPath = Paths.join(tempImportFolder, MEDIA_FOLDER_NAME);
-      const targetMediaPath = Paths.join(Paths.document, MEDIA_FOLDER_NAME);
+      await FileSystem.deleteAsync(mediaSource, { idempotent: true });
+      await FileSystem.moveAsync({
+        from: `${baseDir}${MEDIA_FOLDER_NAME}/`,
+        to: mediaSource,
+      });
 
-      const importedMediaExists = await FileSystem.getInfoAsync(importedMediaPath);
-      if (importedMediaExists.exists) {
-        await FileSystem.deleteAsync(targetMediaPath, { idempotent: true });
-        await FileSystem.makeDirectoryAsync(targetMediaPath, { intermediates: true });
+      await FileSystem.moveAsync({
+        from: `${baseDir}${DATABASE_NAME}`,
+        to: `${dbSource}${DATABASE_NAME}`,
+      });
 
-        const mediaFiles = await FileSystem.readDirectoryAsync(importedMediaPath);
-        for (const fileName of mediaFiles) {
-          await FileSystem.copyAsync({
-            from: Paths.join(importedMediaPath, fileName),
-            to: Paths.join(targetMediaPath, fileName),
-          });
-        }
-      }
+      await FileSystem.deleteAsync(baseDir, { idempotent: true });
 
-      await FileSystem.deleteAsync(tempImportFolder, { idempotent: true });
       alert("Data berhasil diimpor. Aplikasi akan dimulai ulang untuk menerapkan perubahan.");
       await Updates.reloadAsync();
     } catch (error) {

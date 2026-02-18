@@ -9,6 +9,11 @@ v1.1.0
 v.1.1.1
 [v] Tambah indexing untuk performa
 [v] Ubah default filter jadi "Semua" pada nota dan pembayaran
-[v] perbaiki tombol export data gagal
 [v] Tambah suggestion add contact dari 5 jadi 6
 [v] Buat phone number optional
+
+v.1.1.2
+[v] perbaiki datepicker dependency
+[v] gunakan manifest.json ketika import/export
+[v] bulk copy untuk handle file besar agar lebih efisien
+[v] handle db migration ketika import/export
