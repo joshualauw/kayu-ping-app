@@ -1,5 +1,6 @@
 import { Container } from "@/components/Container";
 import DeleteModal from "@/components/DeleteModal";
+import PaymentAllocationModal, { AllocationItem } from "@/components/PaymentAllocation";
 import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts, invoices, paymentAllocations, payments } from "@/db/schema";
@@ -9,14 +10,16 @@ import { getPaymentMethodLabel } from "@/lib/label-helper";
 import { formatCurrency } from "@/lib/utils";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 interface PaymentDetail {
   id: number;
+  contactId: number | null;
   clientName: string;
   amount: number;
   paymentDate: string;
@@ -25,18 +28,22 @@ interface PaymentDetail {
   type: "income" | "expense";
   mediaUrl: string | null;
   allocations: {
-    id: number;
+    allocationId: number;
+    invoiceId: number;
     entryDate: string;
     amount: number;
   }[];
 }
 
 export default function PaymentDetailScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   const { isVisible, show, hide, item } = useDeleteConfirm();
   const [payment, setPayment] = useState<PaymentDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [photoVisible, setPhotoVisible] = useState(false);
+  const [allocationToDeleteId, setAllocationToDeleteId] = useState<number | null>(null);
+  const [allocationModalOpen, setAllocationModalOpen] = useState(false);
 
   const handleDelete = async (paymentId: number) => {
     try {
@@ -51,7 +58,7 @@ export default function PaymentDetailScreen() {
         text1: "Berhasil!",
         text2: "Pembayaran dihapus",
       });
-      router.replace("/payment");
+      router.back();
     } catch (error) {
       console.error(error);
       Toast.show({
@@ -69,74 +76,144 @@ export default function PaymentDetailScreen() {
     hide();
   };
 
+  const handleDeleteAllocation = async (allocationId: number) => {
+    try {
+      await db.delete(paymentAllocations).where(eq(paymentAllocations.id, allocationId));
+
+      setPayment((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          allocations: prev.allocations.filter((allocation) => allocation.allocationId !== allocationId),
+        };
+      });
+
+      Toast.show({
+        type: "success",
+        text1: "Berhasil!",
+        text2: "Alokasi dihapus",
+      });
+    } catch (error) {
+      console.error(error);
+      Toast.show({
+        type: "error",
+        text1: "Gagal!",
+        text2: "Gagal menghapus alokasi",
+      });
+    } finally {
+      setAllocationToDeleteId(null);
+    }
+  };
+
+  const handleApplyAllocation = async (items: AllocationItem[]) => {
+    if (!id || items.length === 0) return;
+
+    try {
+      await db.insert(paymentAllocations).values(
+        items
+          .filter((item) => item.invoiceId)
+          .map((item) => ({
+            paymentId: Number(id),
+            invoiceId: item.invoiceId!,
+            amount: item.amount,
+          })),
+      );
+
+      Toast.show({
+        type: "success",
+        text1: "Berhasil!",
+        text2: "Alokasi ditambahkan",
+      });
+
+      setLoading(true);
+      await fetchDetail();
+    } catch (error) {
+      console.error(error);
+      Toast.show({
+        type: "error",
+        text1: "Gagal!",
+        text2: "Gagal menambahkan alokasi",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDetail = async () => {
+    if (!id || loading) return;
+
+    try {
+      setLoading(true);
+
+      const res = await db
+        .select({
+          id: payments.id,
+          contactId: payments.contactId,
+          clientName: contacts.name,
+          amount: payments.amount,
+          paymentDate: payments.paymentDate,
+          notes: payments.notes,
+          type: payments.type,
+          method: payments.method,
+          mediaUrl: payments.mediaUri,
+        })
+        .from(payments)
+        .leftJoin(contacts, eq(payments.contactId, contacts.id))
+        .where(eq(payments.id, Number(id)))
+        .get();
+
+      if (!res) {
+        setPayment(null);
+        return;
+      }
+
+      const allocationRows = await db
+        .select({
+          allocationId: paymentAllocations.id,
+          invoiceId: invoices.id,
+          entryDate: invoices.entryDate,
+          amount: paymentAllocations.amount,
+          originalAmount: invoices.amount,
+        })
+        .from(paymentAllocations)
+        .leftJoin(invoices, eq(paymentAllocations.invoiceId, invoices.id))
+        .where(eq(paymentAllocations.paymentId, Number(id)))
+        .orderBy(asc(invoices.entryDate), asc(invoices.id));
+
+      const allocations = allocationRows
+        .filter((row) => row.allocationId !== null && row.invoiceId !== null)
+        .map((row) => ({
+          allocationId: row.allocationId!,
+          invoiceId: row.invoiceId!,
+          entryDate: row.entryDate || "",
+          amount: row.amount,
+        }));
+
+      setPayment({
+        ...res,
+        allocations,
+      } as PaymentDetail);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
-      const fetchDetail = async () => {
-        if (!id || loading) return;
-
-        try {
-          setLoading(true);
-
-          const res = await db
-            .select({
-              id: payments.id,
-              clientName: contacts.name,
-              amount: payments.amount,
-              paymentDate: payments.paymentDate,
-              notes: payments.notes,
-              type: payments.type,
-              method: payments.method,
-              mediaUrl: payments.mediaUri,
-            })
-            .from(payments)
-            .leftJoin(contacts, eq(payments.contactId, contacts.id))
-            .where(eq(payments.id, Number(id)))
-            .get();
-
-          if (!res) {
-            setPayment(null);
-            return;
-          }
-
-          const allocationRows = await db
-            .select({
-              id: invoices.id,
-              entryDate: invoices.entryDate,
-              amount: paymentAllocations.amount,
-              originalAmount: invoices.amount,
-            })
-            .from(paymentAllocations)
-            .leftJoin(invoices, eq(paymentAllocations.invoiceId, invoices.id))
-            .where(eq(paymentAllocations.paymentId, Number(id)));
-
-          const allocations = allocationRows
-            .filter((row) => row.id !== null)
-            .map((row) => ({
-              id: row.id!,
-              entryDate: row.entryDate || "",
-              amount: row.amount,
-            }));
-
-          setPayment({
-            ...res,
-            allocations,
-          } as PaymentDetail);
-        } catch (error) {
-          console.error(error);
-        } finally {
-          setLoading(false);
-        }
-      };
-
       fetchDetail();
     }, [id]),
   );
 
   if (!payment) return <Text>Loading...</Text>;
 
+  const totalAllocated = payment.allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+  const remainingAllocation = Math.max(0, payment.amount - totalAllocated);
+
   return (
     <Container>
-      <ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom }}>
         <Stack.Screen options={{ title: "Detail Pembayaran" }} />
 
         <View style={styles.header}>
@@ -175,30 +252,57 @@ export default function PaymentDetailScreen() {
           )}
         </View>
 
-        {payment.allocations.length > 0 && (
-          <View style={styles.allocationBox}>
-            <Text style={styles.sectionTitle}>Nota Terkait</Text>
+        <View style={styles.allocationBox}>
+          <Text style={styles.sectionTitle}>Nota Terkait</Text>
+
+          <View style={styles.allocationSummaryRow}>
+            <Text style={styles.allocationSummaryLabel}>Harga Awal:</Text>
+            <Text style={styles.allocationSummaryValue}>{formatCurrency(payment.amount)}</Text>
+          </View>
+
+          {payment.allocations.length > 0 && (
             <View style={styles.allocationsSection}>
               {payment.allocations.map((allocation, index) => (
                 <Pressable
-                  key={`${allocation.id}-${index}`}
+                  key={`${allocation.allocationId}-${index}`}
                   style={({ pressed }) => [
                     styles.allocationItem,
                     { backgroundColor: pressed ? Colors.secondary : "transparent" },
                   ]}
-                  onPress={() => router.push(`/invoice/${allocation.id}`)}
+                  onPress={() => router.push(`/invoice/${allocation.invoiceId}`)}
                 >
                   <View style={styles.allocationLeft}>
                     <Text style={styles.allocationDate}>{dayjs(allocation.entryDate).format("DD MMM YYYY")}</Text>
                   </View>
                   <View style={styles.allocationRight}>
                     <Text style={styles.allocationAmount}>{formatCurrency(allocation.amount)}</Text>
+                    <Pressable
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        setAllocationToDeleteId(allocation.allocationId);
+                      }}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="remove-circle" size={18} color={Colors.danger} />
+                    </Pressable>
                   </View>
                 </Pressable>
               ))}
             </View>
+          )}
+
+          <View style={[styles.allocationSummaryRow, styles.allocationSummaryRowLast]}>
+            <Text style={styles.allocationSummaryLabelTotal}>Sisa:</Text>
+            <View style={styles.sisaRightSection}>
+              <Text style={styles.allocationSummaryValueTotal}>{formatCurrency(remainingAllocation)}</Text>
+              {remainingAllocation > 0 && (
+                <Pressable onPress={() => setAllocationModalOpen(true)}>
+                  <Ionicons name="add-circle" size={18} color={Colors.success} />
+                </Pressable>
+              )}
+            </View>
           </View>
-        )}
+        </View>
       </ScrollView>
 
       <DeleteModal
@@ -207,6 +311,14 @@ export default function PaymentDetailScreen() {
         message="Pembayaran akan dihapus permanen dan tidak bisa dikembalikan."
         onConfirm={confirmDelete}
         onCancel={hide}
+      />
+
+      <DeleteModal
+        visible={allocationToDeleteId !== null}
+        title="Hapus Alokasi?"
+        message="Alokasi akan dihapus permanen dan tidak bisa dikembalikan."
+        onConfirm={() => allocationToDeleteId && handleDeleteAllocation(allocationToDeleteId)}
+        onCancel={() => setAllocationToDeleteId(null)}
       />
 
       <Modal visible={photoVisible} transparent animationType="fade">
@@ -218,6 +330,16 @@ export default function PaymentDetailScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <PaymentAllocationModal
+        visible={allocationModalOpen}
+        amount={remainingAllocation}
+        contactId={payment.contactId}
+        type={payment.type}
+        initialAllocations={[]}
+        onApply={handleApplyAllocation}
+        onClose={() => setAllocationModalOpen(false)}
+      />
     </Container>
   );
 }
@@ -277,6 +399,35 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   sectionTitle: { fontSize: 14, fontWeight: "700", color: Colors.text, marginBottom: Spacing.sm },
+  allocationSummaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  allocationSummaryRowLast: {
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    marginTop: Spacing.sm,
+  },
+  allocationSummaryLabel: { fontSize: 14, color: "#888", fontWeight: "500" },
+  allocationSummaryValue: { fontSize: 14, fontWeight: "600", color: Colors.text },
+  allocationSummaryLabelTotal: { fontSize: 15, color: "#888", fontWeight: "600" },
+  allocationSummaryValueTotal: { fontSize: 15, fontWeight: "600", color: Colors.text },
+  sisaRightSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  addAllocationButton: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   allocationsSection: {
     marginTop: Spacing.xs,
   },

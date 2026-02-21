@@ -1,5 +1,5 @@
 import { Colors, Spacing } from "@/constants/theme";
-import React from "react";
+import React, { ReactNode } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
 interface DeleteModalProps {
@@ -8,14 +8,16 @@ interface DeleteModalProps {
   onCancel: () => void;
   title: string;
   message: string;
+  children?: ReactNode;
 }
 
-const DeleteModal = ({ visible, onConfirm, onCancel, title, message }: DeleteModalProps) => (
+const DeleteModal = ({ visible, onConfirm, onCancel, title, message, children }: DeleteModalProps) => (
   <Modal visible={visible} transparent animationType="fade">
     <View style={styles.overlay}>
       <View style={styles.container}>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.message}>{message}</Text>
+        {children}
         <View style={styles.buttons}>
           <Pressable style={styles.cancelBtn} onPress={onCancel}>
             <Text style={styles.cancelText}>Batal</Text>

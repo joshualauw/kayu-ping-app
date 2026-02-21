@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 interface ContactListItem {
   id: number;
   name: string;
-  phoneNumber: string;
+  phoneNumber: string | null;
   category: string;
   notes: string | null;
   createdAt: string | null;

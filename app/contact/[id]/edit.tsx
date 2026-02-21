@@ -3,7 +3,7 @@ import { Colors, Spacing } from "@/constants/theme";
 import { db } from "@/db/client";
 import { contacts } from "@/db/schema";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -78,7 +78,11 @@ export default function ContactEditScreen() {
   const onSubmit = async (data: FormValues) => {
     try {
       if (data.phoneNumber) {
-        const existingContact = db.select().from(contacts).where(eq(contacts.phoneNumber, data.phoneNumber)).get();
+        const existingContact = db
+          .select()
+          .from(contacts)
+          .where(and(eq(contacts.phoneNumber, data.phoneNumber), ne(contacts.id, Number(id))))
+          .get();
         if (existingContact) {
           setError("phoneNumber", {
             type: "manual",

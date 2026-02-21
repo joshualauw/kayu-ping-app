@@ -1,6 +1,3 @@
-import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-
 import { Container } from "@/components/Container";
 import DeleteModal from "@/components/DeleteModal";
 import { Colors, Spacing } from "@/constants/theme";
@@ -11,7 +8,10 @@ import { getContactCategoryLabel } from "@/lib/label-helper";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { eq } from "drizzle-orm";
+import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 interface ContactDetail {
@@ -24,6 +24,7 @@ interface ContactDetail {
 }
 
 export default function ContactDetailScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   const { isVisible, show, hide, item } = useDeleteConfirm();
   const [contact, setContact] = useState<ContactDetail | null>(null);
@@ -37,7 +38,7 @@ export default function ContactDetailScreen() {
         text1: "Berhasil!",
         text2: "Kontak dihapus",
       });
-      router.replace("/contact");
+      router.back();
     } catch (error) {
       console.error(error);
       Toast.show({
@@ -78,7 +79,7 @@ export default function ContactDetailScreen() {
 
   return (
     <Container>
-      <ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom }}>
         <Stack.Screen
           options={{
             title: "Detail Kontak",

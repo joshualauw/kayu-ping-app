@@ -156,7 +156,7 @@ export default function PaymentAllocationModal({
     const matchingInvoice = invoiceOptions.find((inv) => inv.id === item.invoiceId);
 
     return (
-      <View key={item.id} style={styles.allocationCard}>
+      <View key={item.id} style={[styles.allocationCard, openDropdownId === item.id && styles.allocationCardOpen]}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Alokasi {index + 1}</Text>
           <Pressable onPress={() => deleteAllocation(item.id)}>
@@ -175,7 +175,7 @@ export default function PaymentAllocationModal({
           </Pressable>
 
           {openDropdownId === item.id && (
-            <View style={styles.dropdown}>
+            <ScrollView style={styles.dropdown} nestedScrollEnabled showsVerticalScrollIndicator>
               {invoiceOptions.map((inv) => (
                 <Pressable
                   key={inv.id}
@@ -189,7 +189,7 @@ export default function PaymentAllocationModal({
                   <Text style={styles.optionAmount}>Sisa: {formatCurrency(inv.amount)}</Text>
                 </Pressable>
               ))}
-            </View>
+            </ScrollView>
           )}
         </View>
 
@@ -428,6 +428,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
+    position: "relative",
+  },
+  allocationCardOpen: {
+    zIndex: 20,
   },
   cardHeader: {
     flexDirection: "row",
@@ -453,15 +457,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dropdown: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    right: 0,
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 8,
     zIndex: 10,
+    elevation: 10,
     maxHeight: 150,
     marginTop: 4,
     overflow: "hidden",

@@ -8,10 +8,11 @@ import { deleteFileFromDisk } from "@/lib/image-helper";
 import { formatCurrency } from "@/lib/utils";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 interface InvoiceDetail {
@@ -32,7 +33,8 @@ interface InvoiceDetail {
   }[];
 }
 
-export default function InvoiceDetailPage() {
+export default function InvoiceDetailScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   const { isVisible, show, hide, item } = useDeleteConfirm();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
@@ -52,7 +54,7 @@ export default function InvoiceDetailPage() {
         text1: "Berhasil!",
         text2: "Nota dihapus",
       });
-      router.replace("/invoice");
+      router.back();
     } catch (error) {
       console.error(error);
       Toast.show({
@@ -107,7 +109,8 @@ export default function InvoiceDetailPage() {
             })
             .from(paymentAllocations)
             .leftJoin(payments, eq(paymentAllocations.paymentId, payments.id))
-            .where(eq(paymentAllocations.invoiceId, Number(id)));
+            .where(eq(paymentAllocations.invoiceId, Number(id)))
+            .orderBy(asc(payments.paymentDate), asc(payments.id));
 
           const allocations = allocationRows
             .filter((row) => row.id !== null)
@@ -144,7 +147,7 @@ export default function InvoiceDetailPage() {
 
   return (
     <Container>
-      <ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom }}>
         <Stack.Screen options={{ title: "Detail Nota" }} />
 
         <View style={styles.header}>

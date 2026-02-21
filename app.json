@@ -2,7 +2,7 @@
   "expo": {
     "name": "KayuPing",
     "slug": "kayu-ping-app",
-    "version": "1.1.2",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "kayupingapp",
@@ -29,6 +29,13 @@
         "expo-image-picker",
         {
           "photosPermission": "The app accesses your photos to let you upload images."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#6200ee"
         }
       ],
       "@react-native-community/datetimepicker"

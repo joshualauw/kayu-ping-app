@@ -24,6 +24,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface ContactFilterItem {
   id: number;
@@ -40,6 +41,7 @@ interface DebtItem {
 }
 
 export default function DebtReportScreen() {
+  const insets = useSafeAreaInsets();
   const [selectedType, setSelectedType] = useState<"piutang" | "utang">("piutang");
   const [filterVisible, setFilterVisible] = useState(false);
   const [filterQuery, setFilterQuery] = useState("");
@@ -364,7 +366,7 @@ export default function DebtReportScreen() {
 
   return (
     <Container>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom }}>
         <View style={styles.typeTabs}>
           <Pressable
             style={[styles.typeTab, selectedType === "piutang" && styles.typeTabActive]}

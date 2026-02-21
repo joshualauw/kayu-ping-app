@@ -2,18 +2,14 @@ import { Container } from "@/components/Container";
 import { Colors, Spacing } from "@/constants/theme";
 import { DATABASE_NAME, expoDb } from "@/db/client";
 import { MaterialIcons } from "@expo/vector-icons";
-import { drizzle } from "drizzle-orm/expo-sqlite";
-import { migrate } from "drizzle-orm/expo-sqlite/migrator";
 import Constants from "expo-constants";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { Stack } from "expo-router";
 import * as Sharing from "expo-sharing";
-import * as SQLite from "expo-sqlite";
 import * as Updates from "expo-updates";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { unzip, zip } from "react-native-zip-archive";
-import migrations from "../drizzle/migrations";
 
 const MEDIA_FOLDER_NAME = "media";
 const CURRENT_DB_VERSION = 8; // Lihat di drizzle folder migrations
@@ -25,11 +21,9 @@ export default function SettingsScreen() {
       await expoDb.execAsync("PRAGMA wal_checkpoint(FULL);");
 
       const baseDir = `${FileSystem.cacheDirectory}export_staging/`;
-      const mediaSource = `${FileSystem.documentDirectory}${MEDIA_FOLDER_NAME}/`;
-      const dbSource = `${FileSystem.documentDirectory}SQLite/${DATABASE_NAME}`;
-      const zipDest = `${FileSystem.cacheDirectory}backup.zip`;
-
       await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
+
+      const zipDest = `${FileSystem.cacheDirectory}backup.zip`;
 
       const manifest = {
         appVersion: Constants.expoConfig?.version || "N/A",
@@ -39,11 +33,13 @@ export default function SettingsScreen() {
       };
       await FileSystem.writeAsStringAsync(`${baseDir}manifest.json`, JSON.stringify(manifest));
 
+      const mediaSource = `${FileSystem.documentDirectory}${MEDIA_FOLDER_NAME}/`;
       await FileSystem.copyAsync({
         from: mediaSource,
         to: `${baseDir}${MEDIA_FOLDER_NAME}/`,
       });
 
+      const dbSource = `${FileSystem.documentDirectory}SQLite/${DATABASE_NAME}`;
       await FileSystem.copyAsync({
         from: dbSource,
         to: `${baseDir}${DATABASE_NAME}`,
@@ -77,10 +73,6 @@ export default function SettingsScreen() {
       const selectedFileUri = result.assets[0].uri;
 
       const baseDir = `${FileSystem.cacheDirectory}import_staging/`;
-      const mediaSource = `${FileSystem.documentDirectory}${MEDIA_FOLDER_NAME}/`;
-      const dbSource = `${FileSystem.documentDirectory}SQLite/`;
-
-      await FileSystem.deleteAsync(baseDir, { idempotent: true });
       await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
 
       await unzip(selectedFileUri, baseDir);
@@ -90,25 +82,16 @@ export default function SettingsScreen() {
         throw new Error("Invalid backup format");
       }
 
-      const manifestStr = await FileSystem.readAsStringAsync(`${baseDir}manifest.json`);
-      const manifest = JSON.parse(manifestStr);
-
       await expoDb.closeAsync();
 
-      if (manifest.dbVersion < CURRENT_DB_VERSION) {
-        const newExpoDb = await SQLite.openDatabaseAsync(DATABASE_NAME);
-        const newDb = drizzle(newExpoDb);
-        await migrate(newDb, migrations);
-
-        console.log(`Migrated database from version ${manifest.dbVersion} to ${CURRENT_DB_VERSION}`);
-      }
-
+      const mediaSource = `${FileSystem.documentDirectory}${MEDIA_FOLDER_NAME}/`;
       await FileSystem.deleteAsync(mediaSource, { idempotent: true });
       await FileSystem.moveAsync({
         from: `${baseDir}${MEDIA_FOLDER_NAME}/`,
         to: mediaSource,
       });
 
+      const dbSource = `${FileSystem.documentDirectory}SQLite/`;
       await FileSystem.moveAsync({
         from: `${baseDir}${DATABASE_NAME}`,
         to: `${dbSource}${DATABASE_NAME}`,

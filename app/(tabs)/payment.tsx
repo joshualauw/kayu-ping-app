@@ -156,7 +156,7 @@ export default function PaymentScreen() {
         .from(payments)
         .leftJoin(contacts, eq(payments.contactId, contacts.id))
         .where(and(...filters))
-        .orderBy(desc(payments.paymentDate))
+        .orderBy(desc(payments.paymentDate), desc(payments.id))
         .limit(limit)
         .offset(offset);
 

@@ -17,6 +17,7 @@ import { Controller, useForm } from "react-hook-form";
 import {
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -77,6 +78,7 @@ export default function AddPaymentScreen() {
   const [methodOpen, setMethodOpen] = useState(false);
   const [allocationModalOpen, setAllocationModalOpen] = useState(false);
   const [allocationDraft, setAllocationDraft] = useState<AllocationItem[]>([]);
+  const [previewImageUri, setPreviewImageUri] = useState<string | null>(null);
 
   const watchedContactId = watch("contactId");
   const watchedAmount = watch("amount");
@@ -122,7 +124,7 @@ export default function AddPaymentScreen() {
 
   useEffect(() => {
     setAllocationDraft([]);
-  }, [watchedContactId, watchedType]);
+  }, [watchedContactId, watchedType, watchedAmount]);
 
   const selectContact = (contact: ContactDropdownItem) => {
     isManualSelection.current = true;
@@ -432,7 +434,12 @@ export default function AddPaymentScreen() {
                   <Text>{value ? "Ubah Foto" : "Pilih Foto"}</Text>
                 </TouchableOpacity>
                 {value && (
-                  <Image source={{ uri: value }} style={{ width: 120, height: 120, marginTop: 10, borderRadius: 8 }} />
+                  <Pressable onPress={() => setPreviewImageUri(value)}>
+                    <Image
+                      source={{ uri: value }}
+                      style={{ width: 120, height: 120, marginTop: 10, borderRadius: 8 }}
+                    />
+                  </Pressable>
                 )}
               </View>
             )}
@@ -447,6 +454,16 @@ export default function AddPaymentScreen() {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal visible={!!previewImageUri} transparent animationType="fade">
+        <Pressable style={styles.photoOverlay} onPress={() => setPreviewImageUri(null)}>
+          <Pressable style={styles.photoContainer} onPress={() => null}>
+            {previewImageUri && (
+              <Image source={{ uri: previewImageUri }} style={styles.photoImage} resizeMode="contain" />
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <PaymentAllocationModal
         visible={allocationModalOpen}
@@ -530,6 +547,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderStyle: "dashed",
+  },
+  photoOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.md,
+  },
+  photoContainer: {
+    width: "100%",
+    maxHeight: "80%",
+    backgroundColor: "white",
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  photoImage: {
+    width: "100%",
+    height: "100%",
   },
   allocationButton: {
     marginTop: Spacing.xs,

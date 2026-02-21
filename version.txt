@@ -17,3 +17,15 @@ v.1.1.2
 [v] gunakan manifest.json ketika import/export
 [v] bulk copy untuk handle file besar agar lebih efisien
 [v] handle db migration ketika import/export
+
+v1.2.0
+[v] bugfix: create default media folder untuk fresh install saat import/export
+[v] bugfix: edit kontak nomor telepon kembar
+[v] bugfix: kalau habis delete di back masih kembali ke halaman yang sama
+[v] improvement: hide UI ketika migration berlangsung
+[V] improvement: buat preview foto saat add/edit bisa di perbesar
+[v] bugfix: invoice dropdown tidak bisa di scroll di alokasi pembayaran
+[v] feature: buat bisa alokasi pembayaran jika ada uang yang belum dialokasikan
+[v] feature: kirim notifikasi pengingat setiap jam 9 malam
+[v] bugfix: import ketika beda versi database / migration
+[v] bugfix: tambah inset di beberapa scroll view

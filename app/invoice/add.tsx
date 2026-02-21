@@ -17,6 +17,7 @@ import { Controller, useForm } from "react-hook-form";
 import {
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -69,6 +70,7 @@ export default function AddInvoiceScreen() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
+  const [previewImageUri, setPreviewImageUri] = useState<string | null>(null);
 
   const isManualSelection = useRef(false);
 
@@ -332,7 +334,12 @@ export default function AddInvoiceScreen() {
                   <Text>{value ? "Ubah Foto" : "Pilih Foto"}</Text>
                 </TouchableOpacity>
                 {value && (
-                  <Image source={{ uri: value }} style={{ width: 120, height: 120, marginTop: 10, borderRadius: 8 }} />
+                  <Pressable onPress={() => setPreviewImageUri(value)}>
+                    <Image
+                      source={{ uri: value }}
+                      style={{ width: 120, height: 120, marginTop: 10, borderRadius: 8 }}
+                    />
+                  </Pressable>
                 )}
               </View>
             )}
@@ -347,6 +354,16 @@ export default function AddInvoiceScreen() {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal visible={!!previewImageUri} transparent animationType="fade">
+        <Pressable style={styles.photoOverlay} onPress={() => setPreviewImageUri(null)}>
+          <Pressable style={styles.photoContainer} onPress={() => null}>
+            {previewImageUri && (
+              <Image source={{ uri: previewImageUri }} style={styles.photoImage} resizeMode="contain" />
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Container>
   );
 }
@@ -420,5 +437,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderStyle: "dashed",
+  },
+  photoOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: Spacing.md,
+  },
+  photoContainer: {
+    width: "100%",
+    maxHeight: "80%",
+    backgroundColor: "white",
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  photoImage: {
+    width: "100%",
+    height: "100%",
   },
 });

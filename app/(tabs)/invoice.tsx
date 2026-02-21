@@ -55,7 +55,7 @@ export default function InvoiceScreen() {
   const [dateFilterType, setDateFilterType] = useState<"all" | "day" | "week" | "month" | "year">("all");
   const [dateAnchor, setDateAnchor] = useState(dayjs());
   const [statusFilterVisible, setStatusFilterVisible] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<"all" | "paid" | "pending">("all");
+  const [selectedStatus, setSelectedStatus] = useState<"all" | "paid" | "pending">("pending");
   const [totalUnpaid, setTotalUnpaid] = useState<number>(0);
 
   const getDateLabel = (type: "all" | "day" | "week" | "month" | "year", anchor: dayjs.Dayjs) => {
@@ -172,7 +172,7 @@ export default function InvoiceScreen() {
         .leftJoin(paymentAllocations, eq(invoices.id, paymentAllocations.invoiceId))
         .where(and(...filters))
         .groupBy(invoices.id, contacts.name)
-        .orderBy(desc(invoices.entryDate))
+        .orderBy(desc(invoices.entryDate), desc(invoices.id))
         .limit(limit)
         .offset(offset);
 
@@ -802,7 +802,6 @@ const styles = StyleSheet.create({
   },
   remainingAmount: {
     fontWeight: "700",
-    fontSize: 16,
   },
   remainingAmountUnpaid: {
     color: Colors.danger,
