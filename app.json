@@ -31,13 +31,7 @@
           "photosPermission": "The app accesses your photos to let you upload images."
         }
       ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#6200ee"
-        }
-      ],
+      "expo-notifications",
       "@react-native-community/datetimepicker"
     ],
     "extra": {
