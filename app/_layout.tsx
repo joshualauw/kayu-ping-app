@@ -22,6 +22,16 @@ export default function RootLayout() {
     }
   }, [success]);
 
+  useEffect(() => {
+    async function seeding() {
+      if (__DEV__) {
+        const { runSeed } = await import("@/db/seed");
+        await runSeed(db);
+      }
+    }
+    seeding();
+  }, []);
+
   if (!success && !error) return <LoadingScreen />;
   if (error) return <ErrorScreen onRetry={() => Updates.reloadAsync()} />;
 

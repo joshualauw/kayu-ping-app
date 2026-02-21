@@ -29,3 +29,6 @@ v1.2.0
 [v] feature: kirim notifikasi pengingat setiap jam 9 malam
 [v] bugfix: import ketika beda versi database / migration
 [v] bugfix: tambah inset di beberapa scroll view
+
+v.1.2.1
+[v] improvement: add optional seeding
